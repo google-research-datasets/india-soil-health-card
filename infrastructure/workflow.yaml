@@ -1,0 +1,118 @@
+main:
+    params: [args]
+    steps:
+        - loopStates:
+            for:
+                value: state
+                in: $${args.states}
+                steps:
+                    - logStepState:
+                        call: sys.log
+                        args:
+                            text: $${"Processing State "+state}
+                            severity: INFO 
+                    - getDistricts:
+                        try:
+                            call: http.get
+                            args:
+                                url: $${"${cloud_run_url}/states/"+state+"/districts"}
+                                auth:
+                                    type: OIDC
+                            result: districts
+                        retry:
+                            max_retries: 8
+                            backoff:
+                                initial_delay: 1
+                                max_delay: 60
+                                multiplier: 2
+                    - logStepDistrictsLoaded:
+                        call: sys.log
+                        args:
+                            text: $${"Loaded districts "+ json.encode_to_string(districts.body) }
+                            severity: INFO 
+                    - loopDistricts:
+                        for:
+                            value: district
+                            in: $${districts.body}
+                            steps:
+                                - logStepDistrict:
+                                    call: sys.log
+                                    args:
+                                        text: $${"Processing district "+district+" of state "+state}
+                                        severity: INFO 
+                                - getMandals:
+                                    try:
+                                        call: http.get
+                                        args:
+                                            url: $${"${cloud_run_url}/states/"+state+"/districts/"+district+"/mandals"}
+                                            auth:
+                                                type: OIDC
+                                        result: mandals
+                                    retry:
+                                        max_retries: 8
+                                        backoff:
+                                            initial_delay: 1
+                                            max_delay: 60
+                                            multiplier: 2
+                                - logStepMandalsLoaded:
+                                    call: sys.log
+                                    args:
+                                        text: $${"Loaded mandals "+ json.encode_to_string(mandals.body) }
+                                        severity: INFO 
+                                - loopMandals:
+                                    for:
+                                        value: mandal
+                                        in: $${mandals.body}
+                                        steps:
+                                            - logStepMandal:
+                                                call: sys.log
+                                                args:
+                                                    text: $${"Processing mandal "+mandal+" of district "+district+" of state "+state}
+                                                    severity: INFO 
+                                            - getVillages:
+                                                try:
+                                                    call: http.get
+                                                    args:
+                                                        url: $${"${cloud_run_url}/states/"+state+"/districts/"+district+"/mandals/"+mandal+"/villages"}
+                                                        auth:
+                                                            type: OIDC
+                                                    result: villages
+                                                retry:
+                                                    max_retries: 8
+                                                    backoff:
+                                                        initial_delay: 1
+                                                        max_delay: 60
+                                                        multiplier: 2
+                                            - logStepVillagesLoaded:
+                                                call: sys.log
+                                                args:
+                                                    text: $${"Loaded villages "+ json.encode_to_string(villages.body) }
+                                                    severity: INFO 
+                                            - loopVillages:
+                                                for:
+                                                    value: village
+                                                    in: $${villages.body}
+                                                    steps:
+                                                        - logStepVillage:
+                                                            call: sys.log
+                                                            args:
+                                                                text: $${"Processing village "+village+" of mandal "+mandal+" of district "+district+" of state "+state}
+                                                                severity: INFO 
+                                                        - loadShcsForVillage:
+                                                            try:
+                                                                call: http.get
+                                                                args:
+                                                                    url: $${"${cloud_run_url}/states/"+state+"/districts/"+district+"/mandals/"+mandal+"/villages/"+village+"/load"}
+                                                                    auth:
+                                                                        type: OIDC
+                                                            retry:
+                                                                max_retries: 8
+                                                                backoff:
+                                                                    initial_delay: 1
+                                                                    max_delay: 60
+                                                                    multiplier: 2
+                                                        #- parallel-executor:
+                                                        #    args:
+                                                        #        workflow_id: shc-scraping-village
+                                                        #    call: experimental.executions.map
+                                                        #        arguments: [{"state": state, "mandal": mandal, "district": district, "village": village}]

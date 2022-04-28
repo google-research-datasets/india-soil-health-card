@@ -1,0 +1,21 @@
+main:
+    params: [args]
+    steps:
+        - logStepVillage:
+            call: sys.log
+            args:
+                text: $${"Processing village "+args.village+" of mandal "+args.mandal+" of district "+args.district+" of state "+args.state}
+                severity: INFO 
+        - loadShcsForVillage:
+            try:
+                call: http.get
+                args:
+                    url: $${"${cloud_run_url}/states/"+args.state+"/districts/"+args.district+"/mandals/"+args.mandal+"/villages/"+args.village+"/load"}
+                    auth:
+                        type: OIDC
+            retry:
+                max_retries: 8
+                backoff:
+                    initial_delay: 1
+                    max_delay: 60
+                    multiplier: 2

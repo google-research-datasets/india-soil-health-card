@@ -1,0 +1,11 @@
+aioflask
+gunicorn
+pandas
+numpy
+requests
+nest-asyncio
+pyppeteer
+pyppdf
+absl-py
+google-cloud-storage
+google-cloud-logging
