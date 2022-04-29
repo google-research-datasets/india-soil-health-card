@@ -1,0 +1,27 @@
+main:
+    params: [args]
+    steps:
+        - loopStates:
+            for:
+                value: state
+                in: $${args.states}
+                steps:
+                    - logStepState:
+                        call: sys.log
+                        args:
+                            text: $${"Processing State "+state}
+                            severity: INFO 
+                    - getOptions:
+                        try:
+                            call: http.get
+                            args:
+                                url: $${"${cloud_run_url}/states/"+state+"/options/ingest"}
+                                auth:
+                                    type: OIDC
+                                    audience: ${cloud_run_url}
+                        retry:
+                            max_retries: 8
+                            backoff:
+                                initial_delay: 1
+                                max_delay: 60
+                                multiplier: 2

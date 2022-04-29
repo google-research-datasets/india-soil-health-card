@@ -2,7 +2,8 @@ import os
 import asyncio
 
 import scraper
-from flask import Flask, jsonify
+import database as database
+from flask import Flask, jsonify, request
 import google.cloud.logging
 import logging
 
@@ -10,6 +11,38 @@ app = Flask(__name__)
 
 client = google.cloud.logging.Client()
 client.setup_logging()
+
+pool = database.init_connection_engine()
+
+@app.route("/options")
+async def getAllOptions():
+    ingested = request.args.get("ingested")
+    limit = request.args.get("limit")
+    logging.info("getAllOptions ingested=%s", request.args.get("ingested"))
+    options = database.getAllOptions(pool, ingested, limit)
+    return jsonify(options)
+
+@app.route("/states/<state>/options/ingest")
+async def ingestAllOptionsForState(state):
+    logging.info("ingestAllOptionsForState state=%s",state)
+    shc_dl = scraper.ShcDL()
+    await shc_dl.setup()
+
+    options = await shc_dl.getAllSearchOptionsForState(state)
+    
+    for index, row in options.iterrows():
+        mandal = row['mandal']
+        district = row['district']
+        village = row['village']
+        database.insertOptions(pool, state, district, mandal, village)
+
+@app.route("/states/<state>/options")
+async def getAllOptionsForState(state):
+    ingested = request.args.get("ingested")
+    limit = request.args.get("limit")
+    logging.info("getAllOptionsForState state=%s, ingested=%s",state, request.args.get("ingested"))
+    options = database.getAllOptionsForState(pool, state, ingested, limit)
+    return jsonify(options)
 
 @app.route("/states/<state>/districts")
 async def getDistrictsForState(state):
@@ -57,6 +90,7 @@ async def getAllSHCForVillage(state,district,mandal,village):
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
     await shc_dl.loadAllSHCForVillage(state,district,mandal,village)
+    database.confirmVillage(pool,state,district,mandal,village)
     return "success"
 
 

@@ -1,6 +1,7 @@
 """Download soil health cards for the given state.
 """
 
+import logging
 from typing import Sequence
 from absl import app
 from absl import flags
@@ -52,8 +53,8 @@ class ShcDL:
 
   async def setup(self):
     self.browser_download_location = os.path.join(Path.home(), 'Downloads')
-    #self.browser = await pyppeteer.launch({'headless': True})
-    self.browser = await pyppeteer.launch({ 'args': ['--no-sandbox']},
+    #self.browser = await pyppeteer.launch({'headless': False})
+    self.browser = await pyppeteer.launch({ 'headless': True, 'args': ['--no-sandbox']},
       handleSIGINT=False,
       handleSIGTERM=False,
       handleSIGHUP=False
@@ -100,16 +101,22 @@ class ShcDL:
     self.page.waitFor(2000)
     districts = await self._getDistrictCodes()
     for dist in districts:
-      await self._selectDistrict(dist)
-      mandals = await self._getMandalCodes()
-      for mandal in mandals:
-        await self._selectMandal(mandal)
-        villages = await self._getVillageCodes()
-        df1 = pd.DataFrame({'village':villages})
-        df1['mandal'] = mandal
-        df1['district'] = dist
-        df = pd.concat([df, df1])
-        df.reset_index(drop=True)
+      try:
+        await self._selectDistrict(dist)
+        mandals = await self._getMandalCodes()
+        for mandal in mandals:
+          try:
+            await self._selectMandal(mandal)
+            villages = await self._getVillageCodes()
+            df1 = pd.DataFrame({'village':villages})
+            df1['mandal'] = mandal
+            df1['district'] = dist
+            df = pd.concat([df, df1])
+            df.reset_index(drop=True)
+          except pyppeteer.errors.TimeoutError:         
+            print(f'No Villages for state={state},district={dist},mandal={mandal}')
+      except pyppeteer.errors.TimeoutError:         
+        print(f'No Mandals for state={state},district={dist}')
     return df
 
   async def _selectDistrict(self, district):
@@ -132,7 +139,7 @@ class ShcDL:
     # await self.page.waitForFunction("document.getElementById('MainTable')")
     await self.page.waitFor(15000)
     await self.page.evaluate("""{window.scrollBy(0, document.body.scrollHeight);}""")
-    await self.page.screenshot({'path': 'search.png'})
+   #await self.page.screenshot({'path': 'search.png'})
 
   async def searchWithOptions(self, district, mandal, village):
     await self._selectDistrict(district)
@@ -187,6 +194,16 @@ class ShcDL:
 
     pdf_file_name = await self._getFileName(index)
     html_file_name = pdf_file_name[:-3] + 'html'
+    circuit_breaker = 0
+    while len(report_html) < 1000 and circuit_breaker < 5:
+      await self.page.waitFor(1000)
+      iframe = await (await self.page.J('#aaa > iframe')).contentFrame()
+      report_html = await iframe.content()
+      circuit_breaker = circuit_breaker + 1
+
+    if len(report_html) < 1000:
+      logging.warn("Unable to download report {file_name} (state={state},district={district},mandal={mandal},village={village})", file_name=html_file_name, state=self.state, district=self.district,mandal=self.mandal,village=self.village )
+      return
 
     file_path = cns_prefix + self.state +"/"+ self.district +"/"+ self.mandal +"/"+ self.village +"/"+ html_file_name
     print("Writing SHC to "+file_path)
@@ -199,14 +216,19 @@ class ShcDL:
     }
     blob.metadata = metadata
     blob.upload_from_string(report_html)
-    #with open(file_path, 'w') as html_file:
-    #  html_file.write(report_html)
+      
 
   async def _loadSHC(self, index):
     print_target = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(11) > a')
     await print_target.click()
+    await self.page.waitForFunction("document.getElementById('aaa') != null")
+    await self.page.waitForFunction("document.getElementById('aaa').children.length > 0")
+    await self.page.waitForFunction("document.querySelector('#aaa > iframe') != null")
+    await self.page.waitForFunction("document.querySelector('#aaa > iframe').contentWindow.document.querySelector('#ReportViewer1_fixedTable > tbody > tr:nth-child(4)') != null")
+    await self.page.waitForFunction("document.querySelector('#aaa > iframe').contentWindow.document.querySelector('#ReportViewer1_fixedTable > tbody > tr:nth-child(4)').children.length > 0")
+      
     await self.page.waitFor(15000) # Better waiting strategy is important here.
-    await self.page.screenshot({'path': F'load_shc_{index}.png'})
+   #await self.page.screenshot({'path': F'load_shc_{index}.png'})
 
   async def _downloadSHC(self):
     iframe = await (await self.page.J('#aaa > iframe')).contentFrame()
@@ -214,7 +236,7 @@ class ShcDL:
     export_target = await iframe.J('#ReportViewer1_ctl05 > div > div:nth-child(7)')
     await export_target.click()
     await self.page.waitFor(1000)
-    await self.page.screenshot({'path':'export.png'})
+   #await self.page.screenshot({'path':'export.png'})
 
     await iframe.waitForSelector('#ReportViewer1_ctl05_ctl04_ctl00_Menu > div:nth-child(4) > a')
     download_target = await iframe.J('#ReportViewer1_ctl05_ctl04_ctl00_Menu > div:nth-child(4) > a')
@@ -326,7 +348,7 @@ class ShcDL:
     await self.getAllSHCForVillage()
 
   async def dtor(self):
-    await self.page.screenshot({'path':'dtor.png'})
+   #await self.page.screenshot({'path':'dtor.png'})
     await self.browser.close()
 
   async def getAllSHCForStateAsync(self, state):

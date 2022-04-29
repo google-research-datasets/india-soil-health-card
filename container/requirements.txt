@@ -9,3 +9,6 @@ pyppdf
 absl-py
 google-cloud-storage
 google-cloud-logging
+cloud-sql-python-connector
+pg8000
+sqlalchemy

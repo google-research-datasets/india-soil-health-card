@@ -1,5 +1,5 @@
 locals {
-  apis = ["iam.googleapis.com", "run.googleapis.com", "workflows.googleapis.com"]
+  apis = ["iam.googleapis.com", "run.googleapis.com", "workflows.googleapis.com", "sqladmin.googleapis.com"]
 }
 
 data "google_project" "project" {
@@ -32,30 +32,30 @@ resource "google_storage_bucket" "shc-bucket" {
 
 resource "google_project_iam_member" "logWriterCloudRun" {
   project = var.project_id
-  role = "roles/logging.logWriter"
-  member = "serviceAccount:${google_service_account.run_sa.email}"
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.run_sa.email}"
 }
 
 resource "google_project_iam_member" "logWriterWorkflow" {
   project = var.project_id
-  role = "roles/logging.logWriter"
-  member = "serviceAccount:${google_service_account.workflow_sa.email}"
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.workflow_sa.email}"
 }
 
 resource "google_storage_bucket_iam_member" "member" {
   bucket = google_storage_bucket.shc-bucket.name
-  role = "roles/storage.objectAdmin"
+  role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.run_sa.email}"
 }
 
 resource "google_workflows_workflow" "shc_scraping" {
-  name          = "shc-scraping"
-  region        = var.region
-  description   = "SHC Data Scraping Workflow"
+  name            = "shc-scraping"
+  region          = var.region
+  description     = "SHC Data Scraping Workflow"
   service_account = google_service_account.workflow_sa.id
-  source_contents = templatefile("${path.module}/workflow.yaml", 
-    { 
-        cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+  source_contents = templatefile("${path.module}/workflow.yaml",
+    {
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
     }
   )
 
@@ -67,13 +67,13 @@ resource "google_workflows_workflow" "shc_scraping" {
 }
 
 resource "google_workflows_workflow" "shc_scraping_village" {
-  name          = "shc-scraping-village"
-  region        = var.region
-  description   = "SHC Data Scraping Workflow for Village"
+  name            = "shc-scraping-village"
+  region          = var.region
+  description     = "SHC Data Scraping Workflow for Village"
   service_account = google_service_account.workflow_sa.id
-  source_contents = templatefile("${path.module}/workflow-village.yaml", 
-    { 
-        cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+  source_contents = templatefile("${path.module}/workflow-village.yaml",
+    {
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
     }
   )
 
@@ -84,18 +84,34 @@ resource "google_workflows_workflow" "shc_scraping_village" {
   ]
 }
 
-resource "google_project_iam_member" "wfExecutor" {
-  project = var.project_id
-  role = "roles/workflows.invoker"
-  member = "serviceAccount:${google_service_account.workflow_sa.email}"
+resource "google_workflows_workflow" "shc_scraping_options" {
+  name            = "shc-scraping-options"
+  region          = var.region
+  description     = "SHC Data Scraping Workflow for Collecting Options"
+  service_account = google_service_account.workflow_sa.id
+  source_contents = templatefile("${path.module}/workflow-ingest-states.yaml",
+    {
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+    }
+  )
+
+  depends_on = [
+    google_cloud_run_service.anthrokrishi-scraper,
+    google_project_service.project,
+    google_storage_bucket.shc-bucket
+  ]
 }
 
 
-
+resource "google_project_iam_member" "wfExecutor" {
+  project = var.project_id
+  role    = "roles/workflows.invoker"
+  member  = "serviceAccount:${google_service_account.workflow_sa.email}"
+}
 
 
 locals {
-  container_folder_hash = sha1(join("", [for f in fileset("../container", "*"): filesha1("../container/${f}")]))
+  container_folder_hash = sha1(join("", [for f in fileset("../container", "*") : filesha1("../container/${f}")]))
 }
 
 resource "null_resource" "docker_image" {
@@ -125,8 +141,8 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
 
   template {
     spec {
-      service_account_name = google_service_account.run_sa.email
-      timeout_seconds = 3600
+      service_account_name  = google_service_account.run_sa.email
+      timeout_seconds       = 3600
       container_concurrency = 1
       containers {
         image = "gcr.io/${var.project_id}/scraper:${local.container_folder_hash}"
@@ -136,20 +152,33 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
         }
         resources {
           limits = {
-            cpu = "2000m"
+            cpu    = "2000m"
             memory = "4Gi"
           }
         }
         env {
-          name = "GCS_BUCKET"
+          name  = "GCS_BUCKET"
           value = google_storage_bucket.shc-bucket.name
         }
-
+        env {
+          name  = "POSTGRES_IAM_USER"
+          value = "${google_service_account.run_sa.account_id}@${data.google_project.project.project_id}.iam" //google_service_account.run_sa.email
+        }
+        env {
+          name  = "DATABASE_NAME"
+          value = google_sql_database.database.name
+        }
+        env {
+          name  = "DATABASE_CONNECTION_NAME"
+          value = google_sql_database_instance.instance.connection_name
+        }
       }
     }
     metadata {
       annotations = {
         "autoscaling.knative.dev/maxScale"      = "100"
+        "run.googleapis.com/cloudsql-instances" = google_sql_database_instance.instance.connection_name
+        "run.googleapis.com/client-name"        = "shc-scraper"
       }
     }
   }
@@ -167,8 +196,8 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
 
 resource "google_cloud_run_service_iam_member" "member" {
   location = google_cloud_run_service.anthrokrishi-scraper.location
-  project = google_cloud_run_service.anthrokrishi-scraper.project
-  service = google_cloud_run_service.anthrokrishi-scraper.name
-  role = "roles/run.invoker"
-  member = "serviceAccount:${google_service_account.workflow_sa.email}"
+  project  = google_cloud_run_service.anthrokrishi-scraper.project
+  service  = google_cloud_run_service.anthrokrishi-scraper.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.workflow_sa.email}"
 }
