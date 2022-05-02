@@ -24,9 +24,14 @@ main:
                         mandal_id: $${args.mandal_id}
                         village: $${args.village}
                         village_id: $${args.village_id}
+                result: cards
             retry:
                 max_retries: 3
                 backoff:
                     initial_delay: 1
                     max_delay: 10
                     multiplier: 2
+        - log2:
+            call: sys.log
+            args:
+                text: $${"Result "+ cards.body }

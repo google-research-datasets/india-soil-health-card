@@ -122,6 +122,7 @@ async def downloadCard():
 
 @app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/load")
 async def getAllSHCForVillage(state,district,mandal,village):
+    file_counter = 0
     overwrite = request.args.get("overwrite")
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
@@ -149,12 +150,14 @@ async def getAllSHCForVillage(state,district,mandal,village):
                     'village':  card['village'].strip(),
                     'village_code': village
                 })
+                file_counter  = file_counter +1
             else:
                 print(f'failed downloading file {file_path}') 
 
         else:
            print(f'skipping file {file_path} since its already downloaded') 
-    return "success"
+    print(f"downloaded {file_counter} files, from {len(cards)} cards")
+    return f"downloaded {file_counter} files, from {len(cards)} cards"
 
 
 if __name__ == "__main__":
