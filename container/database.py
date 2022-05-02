@@ -11,7 +11,7 @@ from google.auth.transport import requests
 connector = Connector()
 
 def init_connection_engine():
-    logging.info("creating database connection with userName=%s,DATABASE_CONNECTION_NAME=%s,DATABASE_NAME=%s",os.environ["POSTGRES_IAM_USER"],os.environ["DATABASE_CONNECTION_NAME"],os.environ["DATABASE_NAME"])
+    print("creating database connection with userName=%s,DATABASE_CONNECTION_NAME=%s,DATABASE_NAME=%s",os.environ["POSTGRES_IAM_USER"],os.environ["DATABASE_CONNECTION_NAME"],os.environ["DATABASE_NAME"])
     def getconn() -> pg8000.dbapi.Connection:
         conn: pg8000.dbapi.Connection = connector.connect(
             os.environ["DATABASE_CONNECTION_NAME"],

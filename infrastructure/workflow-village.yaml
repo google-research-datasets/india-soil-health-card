@@ -1,52 +1,32 @@
 main:
     params: [args]
     steps:
-        - loopStates:
-            for:
-                value: state
-                in: $${args.states}
-                steps:
-                    - logStepState:
-                        call: sys.log
-                        args:
-                            text: $${"Processing State "+state}
-                            severity: INFO 
-                    - getOptions:
-                        try:
-                            call: http.get
-                            args:
-                                url: $${"${cloud_run_url}/states/"+state+"/options?ingested=false&limit=1000"}
-                                auth:
-                                    type: OIDC
-                                    audience: ${cloud_run_url}
-                            result: options
-                        retry:
-                            max_retries: 8
-                            backoff:
-                                initial_delay: 1
-                                max_delay: 60
-                                multiplier: 2
-                    - loopOptions:
-                        for:
-                            value: option
-                            in: $${options.body}
-                            steps:
-                                - logStepDistrict:
-                                    call: sys.log
-                                    args:
-                                        text: $${"Processing district "+string(option.district)+" mandal "+string(option.mandal)+" village "+string(option.village)+"of state "+state}
-                                        severity: INFO 
-                                - loadShcsForVillage:
-                                    try:
-                                        call: http.get
-                                        args:
-                                            url: $${"${cloud_run_url}/states/"+state+"/districts/"+string(option.district)+"/mandals/"+string(option.mandal)+"/villages/"+string(option.village)+"/load"}
-                                            auth:
-                                                type: OIDC
-                                                audience: ${cloud_run_url}
-                                    retry:
-                                        max_retries: 8
-                                        backoff:
-                                            initial_delay: 1
-                                            max_delay: 60
-                                            multiplier: 2
+        - log1:
+            call: sys.log
+            args:
+                text: $${"Loading card "+json.encode_to_string(args)}
+                severity: INFO 
+        - downloadCard:
+            try:
+                call: http.post
+                args:
+                    url: $${"${cloud_run_url}/download"}
+                    auth:
+                        type: OIDC
+                    body:
+                        sample: $${args.sample}
+                        village_grid: $${args.village_grid}
+                        sr_no: $${args.sr_no}
+                        state_id: $${args.state_id}
+                        district: $${args.district}
+                        district_id: $${args.district_id}
+                        mandal: $${args.mandal}
+                        mandal_id: $${args.mandal_id}
+                        village: $${args.village}
+                        village_id: $${args.village_id}
+            retry:
+                max_retries: 3
+                backoff:
+                    initial_delay: 1
+                    max_delay: 10
+                    multiplier: 2

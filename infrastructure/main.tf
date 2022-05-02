@@ -143,7 +143,7 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
     spec {
       service_account_name  = google_service_account.run_sa.email
       timeout_seconds       = 3600
-      container_concurrency = 1
+      container_concurrency = 10
       containers {
         image = "gcr.io/${var.project_id}/scraper:${local.container_folder_hash}"
         ports {
@@ -152,8 +152,8 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
         }
         resources {
           limits = {
-            cpu    = "2000m"
-            memory = "4Gi"
+            cpu    = "4000m"
+            memory = "8Gi"
           }
         }
         env {
@@ -176,7 +176,7 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
     }
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale"      = "100"
+        "autoscaling.knative.dev/maxScale"      = "200"
         "run.googleapis.com/cloudsql-instances" = google_sql_database_instance.instance.connection_name
         "run.googleapis.com/client-name"        = "shc-scraper"
       }
