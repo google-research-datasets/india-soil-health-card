@@ -55,7 +55,8 @@ resource "google_workflows_workflow" "shc_scraping" {
   service_account = google_service_account.workflow_sa.id
   source_contents = templatefile("${path.module}/workflow.yaml",
     {
-      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
+      pubsub_topic = google_pubsub_topic.shcs.id
     }
   )
 
@@ -73,7 +74,8 @@ resource "google_workflows_workflow" "shc_scraping_village" {
   service_account = google_service_account.workflow_sa.id
   source_contents = templatefile("${path.module}/workflow-village.yaml",
     {
-      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
+      pubsub_topic = google_pubsub_topic.shcs.id
     }
   )
 
@@ -84,14 +86,15 @@ resource "google_workflows_workflow" "shc_scraping_village" {
   ]
 }
 
-resource "google_workflows_workflow" "shc_scraping_options" {
-  name            = "shc-scraping-options"
+resource "google_workflows_workflow" "shc_scraping_states" {
+  name            = "shc-scraping-states"
   region          = var.region
-  description     = "SHC Data Scraping Workflow for Collecting Options"
+  description     = "SHC Data Scraping Workflow for Scraping each state"
   service_account = google_service_account.workflow_sa.id
   source_contents = templatefile("${path.module}/workflow-ingest-states.yaml",
     {
-      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
+      pubsub_topic = google_pubsub_topic.shcs.id
     }
   )
 
@@ -142,7 +145,7 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
   template {
     spec {
       service_account_name  = google_service_account.run_sa.email
-      timeout_seconds       = 3600
+      timeout_seconds       = 900
       container_concurrency = 10
       containers {
         image = "gcr.io/${var.project_id}/scraper:${local.container_folder_hash}"
@@ -176,9 +179,77 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
     }
     metadata {
       annotations = {
-        "autoscaling.knative.dev/maxScale"      = "200"
+        "autoscaling.knative.dev/maxScale"      = "10"
         "run.googleapis.com/cloudsql-instances" = google_sql_database_instance.instance.connection_name
         "run.googleapis.com/client-name"        = "shc-scraper"
+      }
+    }
+  }
+
+  traffic {
+    percent         = 100
+    latest_revision = true
+  }
+
+  depends_on = [
+    google_project_service.project,
+    null_resource.docker_image
+  ]
+}
+
+
+resource "google_cloud_run_service" "anthrokrishi-scraper-pubsub" {
+  provider = google-beta
+  name     = "scraper-pubsub"
+  location = var.region
+  project  = var.project_id
+
+  metadata {
+    annotations = {
+      "run.googleapis.com/ingress" : "all"
+    }
+  }
+
+  template {
+    spec {
+      service_account_name  = google_service_account.run_sa.email
+      timeout_seconds       = 3600
+      container_concurrency = 1
+      containers {
+        image = "gcr.io/${var.project_id}/scraper:${local.container_folder_hash}"
+        ports {
+          name           = "http1"
+          container_port = 8080
+        }
+        resources {
+          limits = {
+            cpu    = "4000m"
+            memory = "8Gi"
+          }
+        }
+        env {
+          name  = "GCS_BUCKET"
+          value = google_storage_bucket.shc-bucket.name
+        }
+        env {
+          name  = "POSTGRES_IAM_USER"
+          value = "${google_service_account.run_sa.account_id}@${data.google_project.project.project_id}.iam" //google_service_account.run_sa.email
+        }
+        env {
+          name  = "DATABASE_NAME"
+          value = google_sql_database.database.name
+        }
+        env {
+          name  = "DATABASE_CONNECTION_NAME"
+          value = google_sql_database_instance.instance.connection_name
+        }
+      }
+    }
+    metadata {
+      annotations = {
+        "autoscaling.knative.dev/maxScale"      = "10"
+        "run.googleapis.com/cloudsql-instances" = google_sql_database_instance.instance.connection_name
+        "run.googleapis.com/client-name"        = "shc-scraper-pubsub"
       }
     }
   }

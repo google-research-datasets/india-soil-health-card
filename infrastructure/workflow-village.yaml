@@ -5,33 +5,39 @@ main:
             call: sys.log
             args:
                 text: $${"Loading card "+json.encode_to_string(args)}
-                severity: INFO 
-        - downloadCard:
+                severity: INFO
+        - getCards:
             try:
-                call: http.post
+                call: http.get
                 args:
-                    url: $${"${cloud_run_url}/download"}
+                    url: $${"${cloud_run_url}/states/"+args.state_id+"/districts/"+args.district_id+"/mandals/"+args.mandal_id+"/villages/"+args.id+"/cards?publishable=true"}
                     auth:
                         type: OIDC
-                    body:
-                        sample: $${args.sample}
-                        village_grid: $${args.village_grid}
-                        sr_no: $${args.sr_no}
-                        state_id: $${args.state_id}
-                        district: $${args.district}
-                        district_id: $${args.district_id}
-                        mandal: $${args.mandal}
-                        mandal_id: $${args.mandal_id}
-                        village: $${args.village}
-                        village_id: $${args.village_id}
                 result: cards
             retry:
-                max_retries: 3
+                max_retries: 8
                 backoff:
                     initial_delay: 1
-                    max_delay: 10
+                    max_delay: 60
                     multiplier: 2
         - log2:
             call: sys.log
             args:
-                text: $${"Result "+ cards.body }
+                text: $${"Loaded "+string(len(cards.body))+ " cards"}
+                severity: INFO        
+        - checkCardSize:
+            switch:
+            - condition: $${0 < len(cards.body)}
+              steps:
+                - loopCards:
+                    for:
+                        value: card
+                        in: $${cards.body}
+                        steps:  
+                            - publish_message_to_topic:
+                                call: googleapis.pubsub.v1.projects.topics.publish
+                                args:
+                                    topic: ${pubsub_topic}
+                                    body:
+                                        messages: 
+                                          - data: $${card.data}

@@ -1,7 +1,10 @@
+from imp import NullImporter
+import json
 import os
 import asyncio
 
 import pyppeteer
+from sqlalchemy import null
 import storage
 import scraper
 import old_scraper as old_scraper
@@ -9,6 +12,7 @@ import database as database
 from flask import Flask, jsonify, request
 import google.cloud.logging
 import logging
+import base64
 
 app = Flask(__name__)
 
@@ -38,6 +42,7 @@ async def ingestAllOptionsForState(state):
         district = row['district']
         village = row['village']
         database.insertOptions(pool, state, district, mandal, village)
+    await shc_dl.close()
 
 
 @app.route("/states/<state>/options")
@@ -53,6 +58,7 @@ async def getStates():
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
     states = await shc_dl.getStates()
+    await shc_dl.close()
     return jsonify(states)
 
 @app.route("/states/<state>/districts")
@@ -60,6 +66,7 @@ async def getDistrictsForState(state):
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
     districts = await shc_dl.getDistricts(state)
+    await shc_dl.close()
     return jsonify(districts)
 
 @app.route("/states/<state>/districts/<district>/mandals")
@@ -67,57 +74,62 @@ async def getMandalsForDistrict(state,district):
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
     mandals = await shc_dl.getSubDistricts(district)
+    await shc_dl.close()
     return jsonify(mandals)
 
 @app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages")
 async def getVillagesForMandal(state,district,mandal):
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
-    villages = await shc_dl.getVillages(mandal)
+    villages = await shc_dl.getVillages(state, district, mandal)
+    await shc_dl.close()
     return jsonify(villages)
 
 @app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/cards")
 async def getCards(state,district,mandal,village):
+    publishable = request.args.get("publishable")
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
     cards = await shc_dl.getCards(state, district, mandal, village)
-    return jsonify(cards)
+    await shc_dl.close()
+    if not publishable == "true":
+        return jsonify(cards)
+    else:
+        
+        return jsonify( [{ 'data': base64.b64encode(str.encode(json.dumps(card))).decode("utf-8")  } for card in cards ] )
+
+
+@app.route("/push", methods = [ 'POST'])
+async def push():
+    print("Received push")
+    envelope = request.get_json()
+    if not envelope:
+        msg = "no Pub/Sub message received"
+        print(f"error: {msg}")
+        return f"Bad Request: {msg}", 400
+
+    if not isinstance(envelope, dict) or "message" not in envelope:
+        msg = "invalid Pub/Sub message format"
+        print(f"error: {msg}")
+        return f"Bad Request: {msg}", 400
+
+    pubsub_message = envelope["message"]
+    print("Received push message", pubsub_message)
+    if isinstance(pubsub_message, dict) and "data" in pubsub_message:
+        pubsub_message = base64.b64decode(pubsub_message["data"]).decode("utf-8").strip()
+        card = json.loads(pubsub_message)
+        print("Scraping card", card)
+        await scraper.fetchCard(card, "false")
+    else:
+        print("Will not scrape", pubsub_message)
+
+    return ("", 204)
 
 @app.route("/download", methods = [ 'POST'])
 async def downloadCard():
     overwrite = request.args.get("overwrite")
     card = request.get_json()
-    print("downloading card", card, overwrite)
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    
-    file_path = storage.getFilePath(card['state_id'], card['district_id'], card['mandal_id'], card['village_id'], card['sample'], card['sr_no'])
-    if not storage.isFileDownloaded(file_path) or overwrite == "true":
-        shc = ""
-        counter = 5
-
-        while shc == "" and counter > 0:
-            try:
-                shc = await shc_dl.getCard(card['sample'], card['village_grid'], card['sr_no'])
-            except pyppeteer.errors.TimeoutError:
-                counter = counter - 1
-            except scraper.UnableToDownloadCard:
-                counter = counter - 1
-        if len(shc) > 60*1024:
-            storage.uploadFile(file_path, shc, {
-                'state': card['state_id'].strip(),
-                'district':  card['district'].strip(),
-                'district_code': card['district_id'].strip(),
-                'mandal': card['mandal'].strip(),
-                'mandal_code': card['mandal_id'].strip(),
-                'village':  card['village'].strip(),
-                'village_code': card['village_id'].strip(),
-            })
-        else:
-            print(f'failed downloading file {file_path}') 
-    else:
-        print(f'skipping file {file_path} since its already downloaded') 
-        
+    await scraper.fetchCard(card, overwrite)
     return "success"
 
 @app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/load")
@@ -157,6 +169,7 @@ async def getAllSHCForVillage(state,district,mandal,village):
         else:
            print(f'skipping file {file_path} since its already downloaded') 
     print(f"downloaded {file_counter} files, from {len(cards)} cards")
+    await shc_dl.close()
     return f"downloaded {file_counter} files, from {len(cards)} cards"
 
 
