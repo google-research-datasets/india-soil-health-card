@@ -4,3 +4,5 @@
 *.tfstate.backup
 __pycache__/
 venv/
+.env
+.vscode/
