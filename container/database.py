@@ -11,6 +11,7 @@ from google.auth.transport import requests
 connector = Connector()
 
 def init_connection_engine():
+    """
     print("creating database connection with userName=%s,DATABASE_CONNECTION_NAME=%s,DATABASE_NAME=%s",os.environ["POSTGRES_IAM_USER"],os.environ["DATABASE_CONNECTION_NAME"],os.environ["DATABASE_NAME"])
     def getconn() -> pg8000.dbapi.Connection:
         conn: pg8000.dbapi.Connection = connector.connect(
@@ -28,6 +29,7 @@ def init_connection_engine():
     )
     engine.dialect.description_encoding = None
     return engine
+    """
 
 def insertOptions(pool,state, district, mandal, village ):
     insert_stmt = sqlalchemy.text(

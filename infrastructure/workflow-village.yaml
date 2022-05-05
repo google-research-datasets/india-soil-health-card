@@ -10,7 +10,7 @@ main:
             try:
                 call: http.get
                 args:
-                    url: $${"${cloud_run_url}/states/"+args.state_id+"/districts/"+args.district_id+"/mandals/"+args.mandal_id+"/villages/"+args.id+"/cards?publishable=true"}
+                    url: $${"${cloud_run_url}/states/"+args.state_id+"/districts/"+args.district_id+"/mandals/"+args.mandal_id+"/villages/"+args.id+"/cards?publishable=false&filter_existing=true"}
                     auth:
                         type: OIDC
                 result: cards
@@ -28,16 +28,41 @@ main:
         - checkCardSize:
             switch:
             - condition: $${0 < len(cards.body)}
-              steps:
+              steps:      
                 - loopCards:
                     for:
                         value: card
                         in: $${cards.body}
                         steps:  
-                            - publish_message_to_topic:
-                                call: googleapis.pubsub.v1.projects.topics.publish
+                            - outerLoopAssign:
+                                assign:
+                                - taskname: $${"${queue_name}/tasks/download_"+card.state_id+"_"+card.district_id+"_"+card.mandal_id+"_"+card.village_id+"_"+text.replace_all(card.sample,"/","_") +"-"+ string(card.sr_no)}
+                            - log3:
+                                call: sys.log
                                 args:
-                                    topic: ${pubsub_topic}
+                                    text: $${"Creating task "+taskname}
+                                    severity: INFO  
+                            - create_task:
+                                call: googleapis.cloudtasks.v2.projects.locations.queues.tasks.create
+                                args:
+                                    parent: ${queue_name}
                                     body:
-                                        messages: 
-                                          - data: $${card.data}
+                                      task:
+                                        name: $${taskname}
+                                        #scheduleTime: "2014-10-02T15:01:23Z" 
+                                        httpRequest:
+                                            url: $${"${cloud_run_url_async}/download"}
+                                            body: $${base64.encode(json.encode(card))}
+                                            httpMethod: "POST"
+                                            headers:
+                                                Content-Type: "application/json"
+                                            oidcToken:
+                                                audience: ${cloud_run_url_async}
+                                                serviceAccountEmail: ${task_sa}
+                            #- publish_message_to_topic:
+                            #    call: googleapis.pubsub.v1.projects.topics.publish
+                            #    args:
+                            #        topic: ${pubsub_topic}
+                            #        body:
+                            #            messages: 
+                            #              - data: $${card.data}

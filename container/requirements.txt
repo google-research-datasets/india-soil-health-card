@@ -12,3 +12,4 @@ google-cloud-logging
 cloud-sql-python-connector
 pg8000
 sqlalchemy
+bs4

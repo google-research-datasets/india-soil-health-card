@@ -1,4 +1,3 @@
-from imp import NullImporter
 import json
 import os
 import asyncio
@@ -9,15 +8,12 @@ import storage
 import scraper
 import old_scraper as old_scraper
 import database as database
-from flask import Flask, jsonify, request
-import google.cloud.logging
-import logging
+from flask import Flask, jsonify, request,Response
+import shc_html_extractor
 import base64
+import utils
 
 app = Flask(__name__)
-
-#client = google.cloud.logging.Client()
-#client.setup_logging()
 
 pool = database.init_connection_engine()
 
@@ -25,13 +21,13 @@ pool = database.init_connection_engine()
 async def getAllOptions():
     ingested = request.args.get("ingested")
     limit = request.args.get("limit")
-    print("getAllOptions ingested=%s", request.args.get("ingested"))
+    utils.logText(f'getAllOptions ingested={request.args.get("ingested")}')
     options = await database.getAllOptions(pool, ingested, limit)
     return jsonify(options)
 
 @app.route("/states/<state>/options/ingest")
 async def ingestAllOptionsForState(state):
-    print("ingestAllOptionsForState state=%s",state)
+    utils.logText(f"ingestAllOptionsForState state={state}")
     shc_dl = old_scraper.ShcDL()
     await shc_dl.setup()
 
@@ -49,7 +45,7 @@ async def ingestAllOptionsForState(state):
 async def getAllOptionsForState(state):
     ingested = request.args.get("ingested")
     limit = request.args.get("limit")
-    print("getAllOptionsForState state=%s, ingested=%s",state, request.args.get("ingested"))
+    utils.logText(f'getAllOptionsForState state={state}, ingested={request.args.get("ingested")}')
     options = database.getAllOptionsForState(pool, state, ingested, limit)
     return jsonify(options)
 
@@ -87,50 +83,81 @@ async def getVillagesForMandal(state,district,mandal):
 
 @app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/cards")
 async def getCards(state,district,mandal,village):
+    filter_existing = request.args.get("filter_existing")
     publishable = request.args.get("publishable")
     shc_dl = scraper.ShcDL()
     await shc_dl.setup()
     cards = await shc_dl.getCards(state, district, mandal, village)
+    utils.logText("Found "+str(len(cards))+" unfiltered")
+    if filter_existing == "true":
+        filtered = filter(lambda card: not doesCardAlreadyExist(state, district, mandal, village, card['sample'], card['sr_no']), cards)
+        cards = list(filtered)
+        utils.logText("Found "+str(len(cards))+" filtered")
+
     await shc_dl.close()
     if not publishable == "true":
         return jsonify(cards)
     else:
-        
         return jsonify( [{ 'data': base64.b64encode(str.encode(json.dumps(card))).decode("utf-8")  } for card in cards ] )
 
+@app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/cards/<sample>/<sr_no>/extract")
+async def extractCard(state,district,mandal,village,sample, sr_no):
+    file_path = storage.getFilePath(state, district, mandal, village, sample, sr_no)
+    if not storage.isFileDownloaded(file_path):
+        return Response("Card not downloaded yet", status= 404)
+    else:
+        content = storage.getContent(file_path)
+        extractor = shc_html_extractor.ShcHtmlExtractor(content)
+        return jsonify(extractor.extract())
+
+def doesCardAlreadyExist(state, district, mandal, village, sample, sr_no):
+    file_path = storage.getFilePath(state, district, mandal, village, sample, sr_no)
+    return storage.isFileDownloaded(file_path)
 
 @app.route("/push", methods = [ 'POST'])
 async def push():
-    print("Received push")
+    utils.logText("Received push")
     envelope = request.get_json()
     if not envelope:
         msg = "no Pub/Sub message received"
-        print(f"error: {msg}")
-        return f"Bad Request: {msg}", 400
+        utils.logText(f"error: {msg}")
+        return Response(f"Bad Request: {msg}", status=400)
 
     if not isinstance(envelope, dict) or "message" not in envelope:
         msg = "invalid Pub/Sub message format"
-        print(f"error: {msg}")
-        return f"Bad Request: {msg}", 400
+        utils.logText(f"error: {msg}")
+        return Response(f"Bad Request: {msg}", status=400)
 
     pubsub_message = envelope["message"]
-    print("Received push message", pubsub_message)
+    utils.logText(f"Received push message {pubsub_message}")
     if isinstance(pubsub_message, dict) and "data" in pubsub_message:
         pubsub_message = base64.b64decode(pubsub_message["data"]).decode("utf-8").strip()
         card = json.loads(pubsub_message)
-        print("Scraping card", card)
-        await scraper.fetchCard(card, "false")
-    else:
-        print("Will not scrape", pubsub_message)
+        utils.logText(f"Scraping card {card}")
+        try:
+            await scraper.fetchCard(card, "false")
+        except scraper.ReportServerUpdating:
+            return Response("Report Server is being update", status=503)
 
-    return ("", 204)
+    else:
+        utils.logText(f"Will not scrape {pubsub_message}")
+
+    return Response("", status=204)
 
 @app.route("/download", methods = [ 'POST'])
 async def downloadCard():
     overwrite = request.args.get("overwrite")
     card = request.get_json()
-    await scraper.fetchCard(card, overwrite)
-    return "success"
+    try:
+        await scraper.fetchCard(card, overwrite)
+        return Response("success", status=204)
+    except scraper.UnableToDownloadCard:
+        return Response("Couldn't download card", status=503)
+    except scraper.ReportServerUpdating:
+        return Response("Report Server is being update", status=503)
+    except pyppeteer.errors.TimeoutError as err:
+        print(f"Timeout error {err}")
+        return Response("Timed out loading SHC", status=503)
 
 @app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/load")
 async def getAllSHCForVillage(state,district,mandal,village):
@@ -164,11 +191,11 @@ async def getAllSHCForVillage(state,district,mandal,village):
                 })
                 file_counter  = file_counter +1
             else:
-                print(f'failed downloading file {file_path}') 
+                utils.logText(f'failed downloading file {file_path}') 
 
         else:
-           print(f'skipping file {file_path} since its already downloaded') 
-    print(f"downloaded {file_counter} files, from {len(cards)} cards")
+           utils.logText(f'skipping file {file_path} since its already downloaded') 
+    utils.logText(f"downloaded {file_counter} files, from {len(cards)} cards")
     await shc_dl.close()
     return f"downloaded {file_counter} files, from {len(cards)} cards"
 

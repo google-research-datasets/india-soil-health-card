@@ -31,13 +31,13 @@ resource "google_pubsub_subscription" "scraper" {
   topic = google_pubsub_topic.shcs.name
 
   ack_deadline_seconds = 600
-
+/*
   push_config {
     push_endpoint = "${google_cloud_run_service.anthrokrishi-scraper-pubsub.status[0].url}/push"
     oidc_token {
       service_account_email = google_service_account.pubsub_pusher_sa.email
     }
-  }
+  }*/
 
   dead_letter_policy {
     dead_letter_topic = google_pubsub_topic.shc_dead_letter.id

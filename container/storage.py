@@ -1,5 +1,5 @@
-import logging
 import os
+import utils
 from google.cloud import storage
 storage_client = storage.Client()
 
@@ -9,6 +9,9 @@ file_prefix = 'shcs/'
 
 def isFileDownloaded(file_path):
     return storage.Blob(bucket=bucket, name=file_path).exists(storage_client)
+
+def getContent(file_path):
+    return storage.Blob(bucket=bucket, name=file_path).download_as_string(storage_client)
 
 def getFileName( sample_text, srno_text):
     if srno_text:
@@ -21,10 +24,10 @@ def getFilePath(state, district, mandal, village, sample, srno):
 
 def uploadFile( file_path , content, metadata):
     if len(content) < 1000:
-      logging.warning(f"Unable to download report {file_path}")
+      utils.logText(f"Unable to download report {file_path}")
       return
 
-    print("Writing SHC to "+file_path)
+    utils.logText("Writing SHC to "+file_path)
     blob = bucket.blob(file_path)
     blob.metadata = metadata
     blob.upload_from_string(content)

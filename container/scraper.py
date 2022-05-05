@@ -2,10 +2,12 @@
 """
 
 import logging
+import tempfile
 import storage
 from typing import Sequence
 from absl import app
 from absl import flags
+import utils
 
 import base64
 import io
@@ -38,35 +40,41 @@ import pyppeteer
 import pyppdf.patch_pyppeteer
 
 
+class ReportServerUpdating(Exception):
+     pass
+
 class UnableToDownloadCard(Exception):
      pass
+
 async def req_intercept(req: Request):
     req.headers.update({'X-Requested-With': 'XMLHttpRequest'})
     await req.continue_(overrides={'headers': req.headers})
 
 class ShcDL:
   base_url = 'https://soilhealth.dac.gov.in/HealthCard/HealthCard/state'
-  state= "tmp"
-  district ="tmp"
-  mandal="tmp"
-  village="tmp"
 
   async def setup(self):
-    self.browser = await pyppeteer.launch({ 'headless': True, 'autoClose': False, 'args': ['--no-sandbox']}, # 'executablePath': '/usr/bin/chromium', 
-        handleSIGINT=False,
-        handleSIGTERM=False,
-        handleSIGHUP=False
-      )
+    self.userDataDir = tempfile.TemporaryDirectory()
+    if not os.environ.get('RUN_LOCALLY'):
+      self.browser = await pyppeteer.launch({ 'headless': True, 'executablePath': '/usr/bin/chromium','userDataDir':self.userDataDir.name, 'autoClose': False, 'args': ['--no-sandbox']},
+          handleSIGINT=False,
+          handleSIGTERM=False,
+          handleSIGHUP=False
+        )
+    else:
+      self.browser = await pyppeteer.launch({ 'headless': True,'autoClose': False, 'args': ['--no-sandbox'] },
+          handleSIGINT=False,
+          handleSIGTERM=False,
+          handleSIGHUP=False)
     self.page = await self.browser.newPage()
-    await self.page.setRequestInterception(True)
-    self.page.on('request', lambda req: asyncio.ensure_future(req_intercept(req)))
-    self.page.on('console', lambda msg: print(f'console message {msg.type} {msg.text} {msg.args}'))
+    #self.page.on('console', lambda msg: utils.logText(f'console message {msg.type} {msg.text} {msg.args}'))
 
     await self.page.setViewport({'width': 0, 'height': 0})
 
   async def close(self):
     await self.page.close()
     await self.browser.close()
+    self.userDataDir.cleanup()
 
   async def getToken(self):
     await self.page.goto(self.base_url)
@@ -165,13 +173,16 @@ class ShcDL:
     return result
 
   async def getCards(self, state, district, subdistrict, village):
-    print(f"retrieving cards for village {village}")
+    utils.logText(f"retrieving cards for village {village}")
+    await self.page.setRequestInterception(True)
+    self.page.on('request', lambda req: asyncio.ensure_future(req_intercept(req)))
     token = await self.getToken()
     timestamp = int(time.time()) 
-    await self.page.goto("https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam")
+    #await self.page.goto("https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam")
     
     page = 1
-    await self.page.goto(f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&Statecode={state}&block=&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}')
+    url = f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&Statecode={state}&block=&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}'
+    await self.page.goto(url)
     samples = set()
     results = []
     stop = False
@@ -213,11 +224,15 @@ class ShcDL:
                     'village_id': village
                 })
             else:
-              await self.page.screenshot({'path': F'error_retrieving_cards_{state}_{district}_{subdistrict}_{village}_{page}.png'})
+              await self.screenshot( F'error_retrieving_cards_{state}_{district}_{subdistrict}_{village}_{page}.png')
         page = page + 1
         await self.page.goto(f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&block=&Statecode={state}&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}')
         
     return results
+
+  async def screenshot(self, path):
+      content = await self.page.screenshot()
+      storage.uploadFile("screenshots/"+path, content,{})
 
   async def _pageHasMoreThanOneRow(self):
     sample_element = await self.page.J(F'#MainTable > tbody > tr:nth-child(2) > td:nth-child(1)')
@@ -227,28 +242,28 @@ class ShcDL:
       return False
 
   async def getCard(self, sample_no, village_grid, sr_no):
-    print(f"downloading card {sample_no} {sr_no}")
+    utils.logText(f"downloading card {sample_no} {sr_no}")
     Language_Code= "99"
     ShcValidityDateFrom= "NULL"
     ShcValidityDateTo= "NULL"
     shcformate= "NewFormat"
     url = f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardNewPartialP?Language_Code={Language_Code}&Sample_No={urllib.parse.quote(sample_no,safe="")}&ShcValidityDateFrom={ShcValidityDateFrom}&ShcValidityDateTo={ShcValidityDateTo}&Sr_No={sr_no}&Unit_Code=17&shcformate={shcformate}'
+    print(f"Loading sample url {url}")
     counter = 1
     while counter < 5:
         try:
           try:
-            await self.page.goto(self.base_url)
             report_html = await self._getCardInner(self.page, counter, url)
             if len(report_html) > 60*1024:
               #await page.close()
               return report_html
             else:
               sample_no_escaped = sample_no.replace('/','-')
-              await self.page.screenshot({'path': F'error_download_{sample_no_escaped}_{sr_no}_{counter}.png'})
+              await self.screenshot( F'error_download_{sample_no_escaped}_{sr_no}_{counter}.png')
           except pyppeteer.errors.TimeoutError:
             logging.exception(f"error downloading card {sample_no} {sr_no}")
             sample_no_escaped = sample_no.replace('/','-')
-            await self.page.screenshot({'path': F'error_download_{sample_no_escaped}_{sr_no}_{counter}.png'})
+            await self.screenshot( F'error_download_{sample_no_escaped}_{sr_no}_{counter}.png')
             #await page.close()
             raise pyppeteer.errors.TimeoutError
         except pyppeteer.errors.TimeoutError:
@@ -258,17 +273,25 @@ class ShcDL:
 
   async def _getCardInner(self, page, counter, url):
     await page.goto(url)
-    #await page.waitFor(15000*counter)
+    try:
+      await page.waitForFunction("document.querySelector('body > iframe').contentWindow.document.querySelector('#form1 > div:nth-child(3) > div') != null" , { 'timeout': 30000 })
+      await page.waitForFunction("document.querySelector('body > iframe').contentWindow.document.querySelector('#form1 > div:nth-child(3) > div').textContent == ' Report server is being updated. Please try later...'" , { 'timeout': 30000 })
+      raise ReportServerUpdating()
+    except pyppeteer.errors.TimeoutError:
+      utils.logText("Report Server is not updating")
+
     await page.waitForFunction("document.querySelector('body > iframe') != null")   
     await page.waitForFunction("document.querySelector('body > iframe').contentWindow != null")  
     await page.waitForFunction("document.querySelector('body > iframe').contentWindow.document != null")  
     await page.waitForFunction("document.querySelector('body > iframe').contentWindow.document.querySelector('#VisibleReportContentReportViewer1_ctl09') != null")    
-    await page.waitForFunction("document.querySelector('body > iframe').contentWindow.document.querySelector('#VisibleReportContentReportViewer1_ctl09').children.length > 0")
+    await page.waitForFunction("document.querySelector('body > iframe').contentWindow.document.querySelector('#VisibleReportContentReportViewer1_ctl09').children.length > 0",  {'timeout': 120000 })
+
+
     iframe = await (await page.J('body > iframe')).contentFrame()
     return await iframe.content()
 
 async def fetchCard(card, overwrite):
-    print("downloading card", card, overwrite)
+    utils.logText(f"downloading card {card} {overwrite}")
     shc_dl = ShcDL()
     await shc_dl.setup()
     
@@ -276,42 +299,42 @@ async def fetchCard(card, overwrite):
     if not storage.isFileDownloaded(file_path) or overwrite == "true":
         shc = ""
         counter = 5
-
-        while shc == "" and counter > 0:
-            try:
-                shc = await shc_dl.getCard(card['sample'], card['village_grid'], card['sr_no'])
-            except pyppeteer.errors.TimeoutError:
-                counter = counter - 1
-            except UnableToDownloadCard:
-                counter = counter - 1
-        if len(shc) > 60*1024:
-            storage.uploadFile(file_path, shc, {
-                'state': card['state_id'].strip(),
-                'district':  card['district'].strip(),
-                'district_code': card['district_id'].strip(),
-                'mandal': card['mandal'].strip(),
-                'mandal_code': card['mandal_id'].strip(),
-                'village':  card['village'].strip(),
-                'village_code': card['village_id'].strip(),
-            })
-        else:
-            print(f'failed downloading file {file_path}') 
+        try:
+          while shc == "" and counter > 0:
+              try:
+                  shc = await shc_dl.getCard(card['sample'], card['village_grid'], card['sr_no'])
+              except pyppeteer.errors.TimeoutError:
+                  counter = counter - 1
+                  if counter == 0:
+                    await shc_dl.close()
+                    raise UnableToDownloadCard
+              except UnableToDownloadCard:
+                  counter = counter - 1
+                  if counter == 0:
+                    await shc_dl.close()
+                    raise UnableToDownloadCard
+          if len(shc) > 60*1024:
+              storage.uploadFile(file_path, shc, {
+                  'state': card['state_id'].strip(),
+                  'district':  card['district'].strip(),
+                  'district_code': card['district_id'].strip(),
+                  'mandal': card['mandal'].strip(),
+                  'mandal_code': card['mandal_id'].strip(),
+                  'village':  card['village'].strip(),
+                  'village_code': card['village_id'].strip(),
+              })
+          else:
+              utils.logText(f'failed downloading file {file_path}') 
+        except ReportServerUpdating:
+          utils.logText(f'File {file_path} cant be downloaded at the moment, the report server is down') 
+          await shc_dl.close()
+          raise ReportServerUpdating
+          
     else:
-        print(f'skipping file {file_path} since its already downloaded') 
+        utils.logText(f'skipping file {file_path} since its already downloaded') 
     await shc_dl.close()
 
 if __name__ == "__main__":
-  overwrite = "false"
-  card = {
-    "district": "Darrang",
-    "district_id": "325",
-    "mandal": "Sipajhar",
-    "mandal_id": "2147",
-    "sample": "AS304962/2017-18/88139385",
-    "sr_no": 1,
-    "state_id": "18",
-    "village": "Punia",
-    "village_grid": "1",
-    "village_id": "304962"
-  }
+  overwrite = "true"
+  card = {'district': 'Hnahthial', 'district_id': '1070', 'mandal': 'Hnahthial', 'mandal_id': '1915', 'sample': 'MZ271610/2016-17/10343339', 'sr_no': 1, 'state_id': '15', 'village': 'Darzo', 'village_grid': '7', 'village_id': '271610'}
   asyncio.run(fetchCard(card, overwrite))
