@@ -13,3 +13,5 @@ cloud-sql-python-connector
 pg8000
 sqlalchemy
 bs4
+google-cloud-bigquery
+geojson

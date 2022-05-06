@@ -25,7 +25,7 @@ import concurrent.futures
 from pyppeteer.network_manager import Request, Response
 import urllib.parse
 
-from random import randrange
+from random import getstate, randrange
 from requests.exceptions import ConnectionError
 from requests.exceptions import SSLError
 from requests.exceptions import Timeout
@@ -68,7 +68,7 @@ class ShcDL:
           handleSIGHUP=False)
     self.page = await self.browser.newPage()
     #self.page.on('console', lambda msg: utils.logText(f'console message {msg.type} {msg.text} {msg.args}'))
-
+    self.states = { state['id'] : state for state in await self.getStates() }
     await self.page.setViewport({'width': 0, 'height': 0})
 
   async def close(self):
@@ -83,21 +83,24 @@ class ShcDL:
   async def getStates(self):
     await self.page.goto(self.base_url)
     endpoints = await self.page.evaluate('Array.prototype.slice.call(document.getElementById("StateUrl").children).map(ele => { return { state: ele.textContent, endpoint: ele.value}}).filter(ele => ele.state != "--SELECT--")', force_expr=True)
-    
-    #result = map( lambda el: { 'state': asyncio.run(self.page.evaluate('(element) => element.textContent',el)) , 'endpoint': asyncio.run(self.page.evaluate('(element) => element.value',el)) }, statesDropDown)
-    await self.page.goto("https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam")
-    await self.page.waitForFunction("document.getElementById('State_cd2') != null")
-    await self.page.waitForFunction("document.getElementById('State_cd2').length > 1")
-    ids = await self.page.evaluate('Array.prototype.slice.call(document.getElementById("State_cd2").children).map(ele => { return { state: ele.textContent, id: ele.value}}).filter(ele => ele.state != "--SELECT--")', force_expr=True)
-    
+    ids={}
+    for endpoint in endpoints:
+      #result = map( lambda el: { 'state': asyncio.run(self.page.evaluate('(element) => element.textContent',el)) , 'endpoint': asyncio.run(self.page.evaluate('(element) => element.value',el)) }, statesDropDown)
+      await self.page.goto(endpoint['endpoint']) #"https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam"
+      await self.page.waitForFunction("document.getElementById('State_cd2') != null")
+      await self.page.waitForFunction("document.getElementById('State_cd2').length > 1")
+      results = await self.page.evaluate('Array.prototype.slice.call(document.getElementById("State_cd2").children).map(ele => { return { state: ele.textContent, id: ele.value}}).filter(ele => ele.state != "--SELECT--")', force_expr=True)
+      for ele in results:
+        ids[ele['id']] = ele['state']
+
     result = []
     for state in ids:
         res = {}        
-        res['name'] = state['state']
-        res['id'] = state['id']
+        res['name'] = ids[state]
+        res['id'] = state
         for endpoint in endpoints:
-            if state['state'] == endpoint['state']:
-                res['endpoint'] = endpoint['endpoint']
+            if ids[state] == endpoint['state']:
+                res['endpoint'] = endpoint['endpoint'].replace("HealthCardPNew","")
         result.append(res)
     return result
 
@@ -181,7 +184,8 @@ class ShcDL:
     #await self.page.goto("https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam")
     
     page = 1
-    url = f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&Statecode={state}&block=&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}'
+    state_endpoint = self.states[state]['endpoint']
+    url = f'{state_endpoint}/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&Statecode={state}&block=&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}'
     await self.page.goto(url)
     samples = set()
     results = []
@@ -226,7 +230,7 @@ class ShcDL:
             else:
               await self.screenshot( F'error_retrieving_cards_{state}_{district}_{subdistrict}_{village}_{page}.png')
         page = page + 1
-        await self.page.goto(f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&block=&Statecode={state}&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}')
+        await self.page.goto(f'{state_endpoint}/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&block=&Statecode={state}&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}')
         
     return results
 
@@ -241,13 +245,14 @@ class ShcDL:
     else:
       return False
 
-  async def getCard(self, sample_no, village_grid, sr_no):
+  async def getCard(self, state, sample_no, village_grid, sr_no):
     utils.logText(f"downloading card {sample_no} {sr_no}")
     Language_Code= "99"
     ShcValidityDateFrom= "NULL"
     ShcValidityDateTo= "NULL"
     shcformate= "NewFormat"
-    url = f'https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardNewPartialP?Language_Code={Language_Code}&Sample_No={urllib.parse.quote(sample_no,safe="")}&ShcValidityDateFrom={ShcValidityDateFrom}&ShcValidityDateTo={ShcValidityDateTo}&Sr_No={sr_no}&Unit_Code=17&shcformate={shcformate}'
+    state_endpoint = self.states[state]['endpoint']
+    url = f'{state_endpoint}/HealthCardNewPartialP?Language_Code={Language_Code}&Sample_No={urllib.parse.quote(sample_no,safe="")}&ShcValidityDateFrom={ShcValidityDateFrom}&ShcValidityDateTo={ShcValidityDateTo}&Sr_No={sr_no}&Unit_Code=17&shcformate={shcformate}'
     print(f"Loading sample url {url}")
     counter = 1
     while counter < 5:
@@ -302,7 +307,7 @@ async def fetchCard(card, overwrite):
         try:
           while shc == "" and counter > 0:
               try:
-                  shc = await shc_dl.getCard(card['sample'], card['village_grid'], card['sr_no'])
+                  shc = await shc_dl.getCard(card['state_id'], card['sample'], card['village_grid'], card['sr_no'])
               except pyppeteer.errors.TimeoutError:
                   counter = counter - 1
                   if counter == 0:
@@ -333,8 +338,12 @@ async def fetchCard(card, overwrite):
     else:
         utils.logText(f'skipping file {file_path} since its already downloaded') 
     await shc_dl.close()
+    return shc
 
 if __name__ == "__main__":
-  overwrite = "true"
-  card = {'district': 'Hnahthial', 'district_id': '1070', 'mandal': 'Hnahthial', 'mandal_id': '1915', 'sample': 'MZ271610/2016-17/10343339', 'sr_no': 1, 'state_id': '15', 'village': 'Darzo', 'village_grid': '7', 'village_id': '271610'}
-  asyncio.run(fetchCard(card, overwrite))
+  #overwrite = "true"
+  #card = {'district': 'Hnahthial', 'district_id': '1070', 'mandal': 'Hnahthial', 'mandal_id': '1915', 'sample': 'MZ271610/2016-17/10343339', 'sr_no': 1, 'state_id': '15', 'village': 'Darzo', 'village_grid': '7', 'village_id': '271610'}
+  #asyncio.run(fetchCard(card, overwrite)).
+  shc = ShcDL()
+  asyncio.run(shc.setup())
+  print(asyncio.run(shc.getStates()))

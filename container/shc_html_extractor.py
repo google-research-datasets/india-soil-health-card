@@ -5,7 +5,7 @@ TODO(rshashwat): DO NOT SUBMIT without a detailed description of extract.
 
 import collections
 from typing import Dict
-
+import re
 from bs4 import BeautifulSoup
 from bs4 import Tag
 from html_parser_utils import parse_html_table_row
@@ -110,3 +110,24 @@ class ShcHtmlExtractor:
       An empty dict as this page is not needed as of today.
     """
     return {}
+"""
+if __name__ == "__main__":
+  file_path = "shcs/15/1070/1915/271591/MZ271591-2015-16-1797295_1).html"
+  result = re.match('shcs\/.*\/.*\/.*\/(.*)_(.*)\).html', file_path)
+  if result:
+    sample = result.groups()[0] 
+    sr_no = int(result.groups()[1])
+    metadata = storage.getMetadata(file_path)
+    content = storage.getContent(file_path)
+    extractor = ShcHtmlExtractor(content)
+    print(extractor.extract())
+    #analytics_storage.insertCard(metadata['state'], metadata['district_code'], metadata['mandal_code'], metadata['village_code'], sample, sr_no, extractor.extract())
+  
+  card = {'district': 'Hnahthial', 'district_id': '1070', 'mandal': 'Hnahthial', 'mandal_id': '1915', 'sample': 'MZ271610/2016-17/10343339', 'sr_no': 1, 'state_id': '15', 'village': 'Darzo', 'village_grid': '7', 'village_id': '271610'}
+  file_path = storage.getFilePath(card['state_id'], card['district_id'], card['mandal_id'], card['village_id'], card['sample'], card['sr_no'])
+  content = storage.getContent(file_path)
+  extractor = ShcHtmlExtractor(content)
+  analytics_storage.insertCard(card['state_id'], card['district_id'], card['mandal_id'], card['village_id'], card['sample'], card['sr_no'], extractor.extract())
+  """
+
+  

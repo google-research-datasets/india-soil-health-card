@@ -1,0 +1,74 @@
+main:
+  params: [args]
+  steps:
+    - listSHCs:
+        call: googleapis.storage.v1.objects.list
+        args:
+            bucket: ${shc_bucket}
+            maxResults: 100
+            startOffset: $${args.startOffset}
+        result: cards
+    - log3:
+        call: sys.log
+        args:
+            text: $${"Retrieved "+json.encode_to_string(cards)}
+            severity: INFO
+    - iterateSHCS:
+        for:
+          value: card
+          in: $${cards.items}
+          steps:  
+            - logCard:
+                call: sys.log
+                args:
+                    text: $${"Processing card "+card.name}
+                    severity: INFO
+            - extractCards:
+                call: http.get
+                args:
+                    url: $${"${cloud_run_url}/extract?file_path="+text.decode(urlencode.encode(card.name))}
+                    auth:
+                      type: OIDC
+    - hasNextCard:
+        switch:
+        - condition: $${cards.nextPageToken != ""}
+          steps:
+            - callIterateSub:
+                call: iteratePage
+                args:
+                  PAGE_TOKEN: $${cards.nextPageToken}
+iteratePage:
+  params: [PAGE_TOKEN]
+  steps:  
+    - listSHCssub:
+        call: googleapis.storage.v1.objects.list
+        args:
+            bucket: ${shc_bucket}
+            maxResults: 100
+            pageToken: $${PAGE_TOKEN}
+        result: cards
+    - log4:
+        call: sys.log
+        args:
+            text: $${"Retrieved "+json.encode_to_string(cards)}
+            severity: INFO
+    - iterateSHCSsub:
+        for:
+          value: card
+          in: $${cards.items}
+          steps:  
+            - logCard:
+                call: sys.log
+                args:
+                    text: $${"Processing card "+card.name}
+                    severity: INFO
+            - extractCards:
+                call: http.get
+                args:
+                    url: $${"${cloud_run_url}/extract?file_path="+text.decode(urlencode.encode(card.name))}
+                    auth:
+                      type: OIDC
+    - callIterateSub:
+        call: iteratePage
+        args:
+          PAGE_TOKEN: $${cards.nextPageToken}

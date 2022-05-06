@@ -66,6 +66,12 @@ resource "google_storage_bucket_iam_member" "member" {
   member = "serviceAccount:${google_service_account.run_sa.email}"
 }
 
+resource "google_storage_bucket_iam_member" "member_reader" {
+  bucket = google_storage_bucket.shc-bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.workflow_sa.email}"
+}
+
 resource "google_workflows_workflow" "shc_scraping" {
   name            = "shc-scraping"
   region          = var.region
@@ -73,8 +79,26 @@ resource "google_workflows_workflow" "shc_scraping" {
   service_account = google_service_account.workflow_sa.id
   source_contents = templatefile("${path.module}/workflow.yaml",
     {
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+    }
+  )
+
+  depends_on = [
+    google_cloud_run_service.anthrokrishi-scraper,
+    google_project_service.project,
+    google_storage_bucket.shc-bucket
+  ]
+}
+
+resource "google_workflows_workflow" "shc_extracting" {
+  name            = "shc-extracting"
+  region          = var.region
+  description     = "Extract data from SHCs and send to BigQuery"
+  service_account = google_service_account.workflow_sa.id
+  source_contents = templatefile("${path.module}/workflow-extract-all-files.yaml",
+    {
       cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
-      pubsub_topic = google_pubsub_topic.shcs.id
+      shc_bucket = google_storage_bucket.shc-bucket.name
     }
   )
 
@@ -94,7 +118,6 @@ resource "google_workflows_workflow" "shc_scraping_village" {
     {
       cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
       cloud_run_url_async = google_cloud_run_service.anthrokrishi-scraper-pubsub.status[0].url,
-      pubsub_topic = google_pubsub_topic.shcs.id,
       task_sa = google_service_account.workflow_sa.email,
       queue_name = google_cloud_tasks_queue.default.id
     }
@@ -115,7 +138,6 @@ resource "google_workflows_workflow" "shc_scraping_states" {
   source_contents = templatefile("${path.module}/workflow-ingest-states.yaml",
     {
       cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
-      pubsub_topic = google_pubsub_topic.shcs.id
     }
   )
 
@@ -183,6 +205,10 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
         env {
           name  = "GCS_BUCKET"
           value = google_storage_bucket.shc-bucket.name
+        }
+        env {
+          name  = "BIGQUERY_DATASET"
+          value = google_bigquery_dataset.shc_cards.dataset_id
         }
         env {
           name  = "POSTGRES_IAM_USER"
@@ -253,6 +279,10 @@ resource "google_cloud_run_service" "anthrokrishi-scraper-pubsub" {
           value = google_storage_bucket.shc-bucket.name
         }
         env {
+          name  = "BIGQUERY_DATASET"
+          value = google_bigquery_dataset.shc_cards.dataset_id
+        }
+        env {
           name  = "POSTGRES_IAM_USER"
           value = "${google_service_account.run_sa.account_id}@${data.google_project.project.project_id}.iam" //google_service_account.run_sa.email
         }
@@ -306,7 +336,7 @@ resource "google_cloud_tasks_queue" "default" {
   location = var.region
   project = var.project_id
   rate_limits {
-    max_concurrent_dispatches = 10
+    max_concurrent_dispatches = 50
     max_dispatches_per_second = 100
   }
 }
@@ -344,6 +374,10 @@ resource "google_cloud_run_service" "anthrokrishi-scraper-asia-south" {
         env {
           name  = "GCS_BUCKET"
           value = google_storage_bucket.shc-bucket.name
+        }
+        env {
+          name  = "BIGQUERY_DATASET"
+          value = google_bigquery_dataset.shc_cards.dataset_id
         }
         env {
           name  = "POSTGRES_IAM_USER"

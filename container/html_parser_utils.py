@@ -19,9 +19,8 @@ def parse_html_table_rows_with_two_cols(rows: List[Tag]) -> Dict[str, str]:
   res = {}
   for row in rows:
     cols = parse_html_table_row(row)
-    if len(cols) != 2:
-      raise "not a two column row"
-    res[cols[0]] = cols[1]
+    if len(cols) == 2:
+      res[cols[0]] = cols[1]
   return res
 
 

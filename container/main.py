@@ -1,6 +1,7 @@
 import json
 import os
 import asyncio
+import re
 
 import pyppeteer
 from sqlalchemy import null
@@ -12,10 +13,32 @@ from flask import Flask, jsonify, request,Response
 import shc_html_extractor
 import base64
 import utils
+import analytics_storage
+import logging
+import traceback
 
 app = Flask(__name__)
 
 pool = database.init_connection_engine()
+
+
+@app.route("/extract")
+async def extract():
+    try:
+        file_path = request.args.get("file_path")
+        result = re.match('shcs\/.*\/.*\/.*\/(.*)_(.*)\).html', file_path)
+        if result:
+            sample = result.groups()[0] 
+            sr_no = int(result.groups()[1])
+            metadata = storage.getMetadata(file_path)
+            content = storage.getContent(file_path)
+            extractor = shc_html_extractor.ShcHtmlExtractor(content)
+            
+            analytics_storage.insertCard(metadata['state'], metadata['district_code'], metadata['mandal_code'], metadata['village_code'], sample, sr_no, extractor.extract())
+    except Exception as e:
+        logging.error(traceback.format_exc())
+
+    return Response("",204)
 
 @app.route("/options")
 async def getAllOptions():
@@ -108,7 +131,9 @@ async def extractCard(state,district,mandal,village,sample, sr_no):
     else:
         content = storage.getContent(file_path)
         extractor = shc_html_extractor.ShcHtmlExtractor(content)
-        return jsonify(extractor.extract())
+        extracted = extractor.extract()
+        analytics_storage.insertCard(state,district,mandal, village, sample, sr_no, extracted)
+        return jsonify(extracted)
 
 def doesCardAlreadyExist(state, district, mandal, village, sample, sr_no):
     file_path = storage.getFilePath(state, district, mandal, village, sample, sr_no)
@@ -149,7 +174,13 @@ async def downloadCard():
     overwrite = request.args.get("overwrite")
     card = request.get_json()
     try:
-        await scraper.fetchCard(card, overwrite)
+        content = await scraper.fetchCard(card, overwrite)
+        try:
+            extractor = shc_html_extractor.ShcHtmlExtractor(content)
+            extracted = extractor.extract()
+            analytics_storage.insertCard(card['state_id'].strip(),card['district_id'].strip(),card['mandal_id'].strip(), card['village_id'].strip(), card['sample'], card['sr_no'], extracted)
+        except Exception as e:
+            logging.error(traceback.format_exc())
         return Response("success", status=204)
     except scraper.UnableToDownloadCard:
         return Response("Couldn't download card", status=503)

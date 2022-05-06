@@ -49,7 +49,6 @@ main:
                                     body:
                                       task:
                                         name: $${taskname}
-                                        #scheduleTime: "2014-10-02T15:01:23Z" 
                                         httpRequest:
                                             url: $${"${cloud_run_url_async}/download"}
                                             body: $${base64.encode(json.encode(card))}
@@ -59,10 +58,3 @@ main:
                                             oidcToken:
                                                 audience: ${cloud_run_url_async}
                                                 serviceAccountEmail: ${task_sa}
-                            #- publish_message_to_topic:
-                            #    call: googleapis.pubsub.v1.projects.topics.publish
-                            #    args:
-                            #        topic: ${pubsub_topic}
-                            #        body:
-                            #            messages: 
-                            #              - data: $${card.data}
