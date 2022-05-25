@@ -1,255 +1,303 @@
-import json
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import asyncio
 import re
+import math
 
-import pyppeteer
-from sqlalchemy import null
-import storage
 import scraper
-import old_scraper as old_scraper
-import database as database
-from flask import Flask, jsonify, request,Response
-import shc_html_extractor
-import base64
-import utils
-import analytics_storage
+
 from google.cloud import spanner
-import logging
-import traceback
 
-app = Flask(__name__)
+file_prefix = 'shcs/'
+spanner_client = spanner.Client()
 
-pool = database.init_connection_engine()
+# Retrieve Job-defined env var
+if "CLOUD_RUN_TASK_INDEX" in os.environ:
+    TASK_INDEX = os.getenv("CLOUD_RUN_TASK_INDEX", 0)
+elif "JOB_COMPLETION_INDEX" in os.environ:
+    TASK_INDEX = os.getenv("JOB_COMPLETION_INDEX", 0)
+elif "TASK_INDEX" in os.environ:
+    TASK_INDEX = os.getenv("TASK_INDEX", 0)
+else:
+    TASK_INDEX = "0"
 
+if "CLOUD_RUN_TASK_COUNT" in os.environ:
+    TASK_COUNT = os.getenv("CLOUD_RUN_TASK_COUNT", 0)
+elif "TASK_COUNT" in os.environ:
+    TASK_COUNT = os.getenv("TASK_COUNT", 0)
+else:
+    TASK_COUNT = "1"
 
+MODE = os.getenv("MODE", 0)
 SPANNER_INSTANCE_ID = os.getenv("SPANNER_INSTANCE_ID", 0)
 SPANNER_DATABASE_ID = os.getenv("SPANNER_DATABASE_ID", 0)
-spanner_client = spanner.Client()
 instance = spanner_client.instance(SPANNER_INSTANCE_ID)
 database = instance.database(SPANNER_DATABASE_ID)
 
-@app.route("/extract")
-async def extract():
-    try:
-        file_path = request.args.get("file_path")
-        result = re.match('shcs\/.*\/.*\/.*\/(.*)_(.*)\).html', file_path)
-        if result:
-            sample = result.groups()[0] 
-            sr_no = int(result.groups()[1])
-            metadata = storage.getMetadata(file_path)
-            content = storage.getContent(file_path)
-            extractor = shc_html_extractor.ShcHtmlExtractor(content)
-            
-            analytics_storage.insertCard(metadata['state'], metadata['district_code'], metadata['mandal_code'], metadata['village_code'], sample, sr_no, extractor.extract())
-    except Exception as e:
-        logging.error(traceback.format_exc())
+shc_dl = scraper.ShcDL()
+asyncio.run(shc_dl.setup())
 
-    return Response("",204)
+def insertStates(states):
+    with database.batch() as batch:
+        batch.insert_or_update(
+            table="States",
+            columns=("StateId", "Name"),
+            values=[(int(state['id']), state['name']) for state in states],
+        )
 
-@app.route("/options")
-async def getAllOptions():
-    ingested = request.args.get("ingested")
-    limit = request.args.get("limit")
-    utils.logText(f'getAllOptions ingested={request.args.get("ingested")}')
-    options = await database.getAllOptions(pool, ingested, limit)
-    return jsonify(options)
+def insertDistricts(stateId, districts):
+    with database.batch() as batch:
+        batch.insert_or_update(
+            table="Districts",
+            columns=("DistrictId", "StateId", "Name"),
+            values=[(int(district['id']),int(stateId), district['name']) for district in districts],
+        )
 
-@app.route("/states/<state>/options/ingest")
-async def ingestAllOptionsForState(state):
-    utils.logText(f"ingestAllOptionsForState state={state}")
-    shc_dl = old_scraper.ShcDL()
-    await shc_dl.setup()
+def insertSubDistricts(districtId, subDistricts):
+    with database.batch() as batch:
+        batch.insert_or_update(
+            table="SubDistricts",
+            columns=("SubDistrictId", "DistrictId", "Name"),
+            values=[(int(subDistrict['id']),int(districtId), subDistrict['name']) for subDistrict in subDistricts],
+        )
 
-    options = await shc_dl.getAllSearchOptionsForState(state)
-    
-    for index, row in options.iterrows():
-        mandal = row['mandal']
-        district = row['district']
-        village = row['village']
-        database.insertOptions(pool, state, district, mandal, village)
-    await shc_dl.close()
+def insertVillages(subDistrictId, villages):
+    with database.batch() as batch:
+        batch.insert_or_update(
+            table="Villages",
+            columns=("VillageId", "SubDistrictId", "Name"),
+            values=[(int(village['id']),int(subDistrictId), village['name']) for village in villages],
+        )
 
-
-@app.route("/states/<state>/options")
-async def getAllOptionsForState(state):
-    ingested = request.args.get("ingested")
-    limit = request.args.get("limit")
-    utils.logText(f'getAllOptionsForState state={state}, ingested={request.args.get("ingested")}')
-    options = database.getAllOptionsForState(pool, state, ingested, limit)
-    return jsonify(options)
-
-@app.route("/states")
-async def getStates():
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    states = await shc_dl.getStates()
-    await shc_dl.close()
-    return jsonify(states)
-
-@app.route("/states/<state>/districts")
-async def getDistrictsForState(state):
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    districts = await shc_dl.getDistricts(state)
-    await shc_dl.close()
-    return jsonify(districts)
-
-@app.route("/states/<state>/districts/<district>/mandals")
-async def getMandalsForDistrict(state,district):
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    mandals = await shc_dl.getSubDistricts(state, district)
-    await shc_dl.close()
-    return jsonify(mandals)
-
-@app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages")
-async def getVillagesForMandal(state,district,mandal):
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    villages = await shc_dl.getVillages(state, district, mandal)
-    await shc_dl.close()
-    return jsonify(villages)
-
-@app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/cards")
-async def getCards(state,district,mandal,village):
-    filter_existing = request.args.get("filter_existing")
-    publishable = request.args.get("publishable")
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    cards = await shc_dl.getCards(state, district, mandal, village)
-    utils.logText("Found "+str(len(cards))+" unfiltered")
-    if filter_existing == "true":
-        filtered = filter(lambda card: not doesCardAlreadyExist(state, district, mandal, village, card['sample'], card['sr_no']), cards)
-        cards = list(filtered)
-        utils.logText("Found "+str(len(cards))+" filtered")
-
-    await shc_dl.close()
-    if not publishable == "true":
-        return jsonify(cards)
-    else:
-        return jsonify( [{ 'data': base64.b64encode(str.encode(json.dumps(card))).decode("utf-8")  } for card in cards ] )
-
-@app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/cards/<sample>/<sr_no>/extract")
-async def extractCard(state,district,mandal,village,sample, sr_no):
-    file_path = storage.getFilePath(state, district, mandal, village, sample, sr_no)
-    if not storage.isFileDownloaded(file_path):
-        return Response("Card not downloaded yet", status= 404)
-    else:
-        content = storage.getContent(file_path)
-        extractor = shc_html_extractor.ShcHtmlExtractor(content)
-        extracted = extractor.extract()
-        analytics_storage.insertCard(state,district,mandal, village, sample, sr_no, extracted)
-        return jsonify(extracted)
-
-def doesCardAlreadyExist(state, district, mandal, village, sample, sr_no):
-    file_path = storage.getFilePath(state, district, mandal, village, sample, sr_no)
-    return storage.isFileDownloaded(file_path)
-
-@app.route("/push", methods = [ 'POST'])
-async def push():
-    utils.logText("Received push")
-    envelope = request.get_json()
-    if not envelope:
-        msg = "no Pub/Sub message received"
-        utils.logText(f"error: {msg}")
-        return Response(f"Bad Request: {msg}", status=400)
-
-    if not isinstance(envelope, dict) or "message" not in envelope:
-        msg = "invalid Pub/Sub message format"
-        utils.logText(f"error: {msg}")
-        return Response(f"Bad Request: {msg}", status=400)
-
-    pubsub_message = envelope["message"]
-    utils.logText(f"Received push message {pubsub_message}")
-    if isinstance(pubsub_message, dict) and "data" in pubsub_message:
-        pubsub_message = base64.b64decode(pubsub_message["data"]).decode("utf-8").strip()
-        card = json.loads(pubsub_message)
-        utils.logText(f"Scraping card {card}")
-        try:
-            await scraper.fetchCard(card, "false")
-        except scraper.ReportServerUpdating:
-            return Response("Report Server is being update", status=503)
-
-    else:
-        utils.logText(f"Will not scrape {pubsub_message}")
-
-    return Response("", status=204)
-
-@app.route("/download", methods = [ 'POST'])
-async def downloadCard():
-    overwrite = request.args.get("overwrite")
-    card = request.get_json()
-    card['state_id'] = str(card['state_id'])
-    card['district_id'] = str(card['district_id'])
-    card['village_id'] = str(card['village_id'])
-    card['mandal_id'] = str(card['mandal_id'])
-    card['sr_no'] = str(card['sr_no'])
-    try:
-        content = await scraper.fetchCard(card, overwrite)
+def insertCards(villageId, cards):
+    if len(cards) > 0:
         with database.batch() as batch:
             batch.insert_or_update(
                 table="Cards",
-                columns=("VillageId", "Sample", "SrNo", "Ingested"),
-                values=[
-                    (int(card['village_id']), card['sample'], int(card['sr_no']), True)
-                ],
+                columns=("VillageId", "Sample", "VillageGrid", "SrNo"),
+                values=[(villageId, card['sample'],card['village_grid'],card['sr_no']) for card in cards],
             )
-        try:
-            extractor = shc_html_extractor.ShcHtmlExtractor(content)
-            extracted = extractor.extract()
-            analytics_storage.insertCard(card['state_id'].strip(),card['district_id'].strip(),card['mandal_id'].strip(), card['village_id'].strip(), card['sample'], card['sr_no'], extracted)
-        except Exception as e:
-            logging.error(traceback.format_exc())
-        return Response("success", status=204)
-    except scraper.UnableToDownloadCard:
-        return Response("Couldn't download card", status=503)
-    except scraper.ReportServerUpdating:
-        return Response("Report Server is being update", status=503)
-    except pyppeteer.errors.TimeoutError as err:
-        print(f"Timeout error {err}")
-        return Response("Timed out loading SHC", status=503)
 
-@app.route("/states/<state>/districts/<district>/mandals/<mandal>/villages/<village>/load")
-async def getAllSHCForVillage(state,district,mandal,village):
-    file_counter = 0
-    overwrite = request.args.get("overwrite")
-    shc_dl = scraper.ShcDL()
-    await shc_dl.setup()
-    cards = await shc_dl.getCards(state, district, mandal, village)
-    for card in cards:
-        file_path = storage.getFilePath(state, district, mandal, village, card['sample'], card['sr_no'])
-        if not storage.isFileDownloaded(file_path) or overwrite == "true":
-            shc = ""
-            counter = 5
+def getCheckpoint(Id):
+    with database.snapshot() as snapshot:
+        countResults = snapshot.execute_sql(
+                '''SELECT StateId, DistrictId, SubDistrictId FROM Checkpoints WHERE Id = @id''',
+            params={"id": Id},
+            param_types={"id": spanner.param_types.INT64},
+            )
+        for countResult in countResults:
+            StateId = int(countResult[0])
+            DistrictId = int(countResult[1])
+            SubDistrictId = int(countResult[2])
+            return StateId, DistrictId, SubDistrictId
+    return -1,-1,-1
 
-            while shc == "" and counter > 0:
-                try:
-                    shc = await shc_dl.getCard(card['sample'], card['village_grid'], card['sr_no'])
-                except pyppeteer.errors.TimeoutError:
-                    counter = counter - 1
-                except scraper.UnableToDownloadCard:
-                    counter = counter - 1
-            if len(shc) > 60*1024:
-                storage.uploadFile(file_path, shc, {
-                    'state': state,
-                    'district':  card['district'].strip(),
-                    'district_code': district,
-                    'mandal': card['mandal'].strip(),
-                    'mandal_code': mandal,
-                    'village':  card['village'].strip(),
-                    'village_code': village
-                })
-                file_counter  = file_counter +1
-            else:
-                utils.logText(f'failed downloading file {file_path}') 
+def updateCheckpoint(Id, StateId, DistrictId, SubDistrictId):
+    with database.batch() as batch:
+        batch.insert_or_update(
+            table="Checkpoints",
+            columns=("Id", "StateId", "DistrictId", "SubDistrictId"),
+            values=[
+                (Id, StateId, DistrictId, SubDistrictId),
+            ],
+        )
 
+def markCard(VillageId,Sample, SrNo, Ingested):
+    database.run_in_transaction(lambda transaction: transaction.execute_update(
+        "UPDATE Cards "
+        "SET Ingested = @Ingested "
+        "WHERE VillageId = @VillageId AND Sample = @Sample And SrNo = @SrNo",
+        params={"VillageId":VillageId, "Sample": Sample, "SrNo": SrNo, "Ingested": Ingested},
+        param_types={"VillageId": spanner.param_types.INT64,"Sample": spanner.param_types.STRING,"SrNo": spanner.param_types.INT64,"Ingested": spanner.param_types.BOOL },
+    ))
+
+def markVillage(VillageId, CardsLoaded):
+    database.run_in_transaction(lambda transaction: transaction.execute_update(
+        "UPDATE Villages "
+        "SET CardsLoaded = @CardsLoaded "
+        "WHERE VillageId = @VillageId ",
+        params={"VillageId":VillageId, "CardsLoaded": CardsLoaded},
+        param_types={"VillageId": spanner.param_types.INT64,"CardsLoaded": spanner.param_types.BOOL },
+    ))
+
+async def ingest():
+    StateId, DistrictId, SubDistrictId = getCheckpoint(1)
+    print("Loading States")
+    states = [state[1] for state in scraper.offlineStates().items()]
+    states = sorted(states, key=lambda state: int(state['id']))
+    insertStates(states)
+    for state in states:
+        print(f"Loading and Ingesting Districts for state {state['id']}")
+        if (int(state['id']) >= StateId or StateId == -1):
+            districts = await shc_dl.getDistricts(state['id'])
+            districts = sorted(districts, key=lambda district: int(district['id']))
+            if len(districts) >0:
+                insertDistricts(state['id'], districts)
+                for district in districts:
+                    if int(district['id']) >= DistrictId or DistrictId == -1:
+                        print(f"Loading and Ingesting SubDistricts for state {state['id']} and district {district['id']}")
+                        subDistricts = await shc_dl.getSubDistricts(state['id'], district['id'])
+                        subDistricts = sorted(subDistricts, key=lambda subDistrict: int(subDistrict['id']))
+                        if len(subDistricts) >0:
+                            insertSubDistricts(district['id'], subDistricts)
+                            for subDistrict in subDistricts:
+                                if int(subDistrict['id']) >= SubDistrictId or SubDistrictId == -1:
+                                    print(f"Loading and Ingesting Villages for state {state['id']}, district {district['id']}, subDistrict {subDistrict['id']}")
+                                    villages = await shc_dl.getVillages(state['id'], district['id'], subDistrict['id'])
+                                    if len(villages) >0:
+                                        insertVillages(subDistrict['id'], villages)
+                                    updateCheckpoint(1,state['id'], district['id'], subDistrict['id'])
+                                else:
+                                    print(f"Skipping subDistrict {subDistrict['id']}")
+                        updateCheckpoint(1,state['id'], district['id'], -1)
+                        SubDistrictId = -1
+                    else:
+                        print(f"Skipping district {district['id']}")
+            updateCheckpoint(1,state['id'], -1, -1)
+            DistrictId = -1
         else:
-           utils.logText(f'skipping file {file_path} since its already downloaded') 
-    utils.logText(f"downloaded {file_counter} files, from {len(cards)} cards")
+            print(f"Skipping state {state['id']}")
     await shc_dl.close()
-    return f"downloaded {file_counter} files, from {len(cards)} cards"
 
+async def ingestCards():
+    checkpointId = 2+int(TASK_INDEX)
+    start, t1, t2 = getCheckpoint(checkpointId)
+    print("Loading amount of unchecked villages")
+    with database.snapshot() as snapshot:
+        results = snapshot.execute_sql(
+            '''SELECT count(*) FROM Villages WHERE not CardsLoaded is True''',
+        )
+        results = list(results)
+        count = results[0][0]
+        limit = math.ceil(count / int(TASK_COUNT))
+        offset = limit*int(TASK_INDEX)
+    
+    
+    if count < 1:
+        print("No unchecked villages at the moment")
+        return
+    else:
+        print(f"At the moment at total of {count} villages are pending, scraping from {offset} {limit} villages with checkpoint start {start}")
+
+    with database.snapshot() as snapshot:
+        results = snapshot.execute_sql(
+            '''SELECT VillageId, SubDistrictId, DistrictId, StateId FROM VILLAGES_VIEW
+                WHERE not CardsLoaded is True
+                ORDER BY VillageId 
+                LIMIT @limit OFFSET @offset''',
+            params={ "limit":limit, "offset": offset},
+            param_types={"limit": spanner.param_types.INT64,"offset": spanner.param_types.INT64},
+        )
+        
+        for row in results:
+            VillageId = row[0]
+            SubDistrictId = row[1]
+            DistrictId = row[2]
+            StateId = row[3]
+            print(f"Loading Card for {StateId} {DistrictId} {SubDistrictId} {VillageId}")
+            cards = await shc_dl.getCards(str(StateId), str(DistrictId), str(SubDistrictId), str(VillageId))
+            insertCards(VillageId,cards )
+            markVillage(int(VillageId),True)
+            updateCheckpoint(checkpointId, int(VillageId), -1, -1)
+
+async def scrapeCards():
+    print("Loading amount of uningested cards")
+    with database.snapshot() as snapshot:
+        results = snapshot.execute_sql(
+            '''SELECT count(*) FROM Cards WHERE not Ingested is True''',
+        )
+        results = list(results)
+        count = results[0][0]
+        limit = math.ceil(count / int(TASK_COUNT))
+        offset = limit*int(TASK_INDEX)
+
+    if count < 1:
+        print("No uningested cards at the moment")
+        return
+    else:
+        print(f"At the moment at total of {count} cards is pending, scraping from {offset} {limit} cards")
+
+    with database.snapshot() as snapshot:
+        results = snapshot.execute_sql(
+            '''SELECT * FROM Cards WHERE not Ingested is True 
+                ORDER BY VillageId 
+                LIMIT @limit OFFSET @offset''',
+            params={"limit":limit, "offset": offset},
+            param_types={"limit": spanner.param_types.INT64,"offset": spanner.param_types.INT64},
+        )
+        
+        for row in results:
+            VillageId = str(row[0])
+            Sample = row[1]
+            VillageGrid = row[2]
+            SrNo = str(row[3])
+            with database.snapshot() as snapshot:
+                results2 = snapshot.execute_sql(
+                    '''SELECT VillageName, SubDistrictId, SubDistrictName, DistrictId, DistrictName, StateId, StateName
+                     FROM VILLAGES_VIEW WHERE VillageId =  @VillageId''',
+                    params={"VillageId":int(VillageId)},
+                    param_types={"VillageId": spanner.param_types.INT64},
+                )
+                for row2 in results2:
+                    VillageName = row2[0]
+                    SubDistrictId = str(row2[1])
+                    SubDistrictName = row2[2]
+                    DistrictId = str(row2[3])
+                    DistrictName = row2[4]
+                    StateId = str(row2[5])
+                    StateName = row2[6]
+
+            card = {
+                'sample': Sample,
+                'village_grid': VillageGrid,
+                'sr_no': SrNo,
+                'district': DistrictName,
+                'mandal': SubDistrictName,
+                'village': VillageName,
+                'state_id': StateId,
+                'state':StateName,
+                'district_id': DistrictId,
+                'mandal_id': SubDistrictId,
+                'village_id': VillageId
+            }
+            print(f"scraping card {card}")
+            await scraper.fetchCard(card, False)
+            markCard(int(VillageId), Sample, int(SrNo), True)
+            
+def mapToDb(item):
+    result = re.match('shcs\/.*\/.*\/.*\/(.*)_(.*)\).html', item.name)
+    if result:
+        sample = result.groups()[0] 
+        sr_no = int(result.groups()[1])
+        metadata = item.metadata
+        village_code = metadata['village_code']
+        return (village_code, sample, sr_no, True)
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    print(f"Running {MODE} {TASK_INDEX}/{TASK_COUNT}")
+    if MODE and MODE == "INGEST":
+        print("Ingesting Metadata")
+        asyncio.run(shc_dl.newPage())
+        asyncio.run(ingest())
+    elif MODE and MODE == "CARDS":
+        print("Ingesting Cards")
+        asyncio.run(ingestCards())
+    elif MODE and MODE == "SCRAPE":
+        print("Scrape Cards")
+        asyncio.run(scrapeCards())
+    else:
+        print("Nothing todo")
+    

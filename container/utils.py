@@ -1,8 +1,20 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import google.cloud.logging
 import logging
 import os
-
-from flask import request
 
 if not os.environ.get('RUN_LOCALLY'):
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
@@ -15,30 +27,6 @@ else:
 
 def logText(text):
     if not os.environ.get('RUN_LOCALLY'):
-        logger.log_text(text)
+       logger.log_text(text)
     else:
        print(text)
-    '''
-    if not os.environ.get('RUN_LOCALLY'):
-        options = {
-        }
-        trace_id = request.headers.get('X-Cloud-Trace-Context', 'no_trace_id').split('/')[0]
-        if trace_id:
-            options['trace'] = "projects/{}/traces/{}".format(os.getenv('GOOGLE_CLOUD_PROJECT'), trace_id)
-    
-        queueName = request.headers.get('X-CloudTasks-QueueName')
-        if queueName:
-            if not 'labels' in options:
-                options['labels'] = {}
-            options['labels']['queue_id'] = queueName
-
-        taskName = request.headers.get('X-CloudTasks-TaskName')
-        if taskName:
-            if not 'jsonPayload' in options:
-                options['jsonPayload'] = {}
-            options['jsonPayload']['task'] = taskName
-
-        logger.log_text(text, options)
-    else:
-        print(text)
-    '''

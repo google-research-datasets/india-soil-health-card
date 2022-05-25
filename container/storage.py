@@ -1,8 +1,20 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import utils
-import re
-import shc_html_extractor
-import analytics_storage
+
 from google.cloud import storage
 storage_client = storage.Client()
 
@@ -37,22 +49,3 @@ def uploadFile( file_path , content, metadata):
     blob = bucket.blob(file_path)
     blob.metadata = metadata
     blob.upload_from_string(content)
-
-
-
-if __name__ == "__main__":
-  counter = 0
-  objects = list(storage_client.list_blobs(bucket_or_name=os.getenv("GCS_BUCKET"), prefix="shcs"))
-  for item in objects:
-    result = re.match('shcs\/.*\/.*\/.*\/(.*)_(.*)\).html', item.name)
-
-    if result:
-        sample = result.groups()[0] 
-        sr_no = int(result.groups()[1])
-        metadata = item.metadata
-        content = item.download_as_string(storage_client)
-        extractor = shc_html_extractor.ShcHtmlExtractor(content)
-        print(f'{counter} {sample}{sr_no}')
-        counter = counter +1
-        analytics_storage.insertCard(metadata['state'], metadata['district_code'], metadata['mandal_code'], metadata['village_code'], sample, sr_no, extractor.extract())
-  

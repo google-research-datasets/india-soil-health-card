@@ -1,48 +1,40 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Download soil health cards for the given state.
 """
-
 from bs4 import BeautifulSoup
-from bs4 import Tag
 
 import logging
-import tempfile
 import storage
-from typing import Sequence
-from absl import app
-from absl import flags
 import utils
-from google.cloud import bigquery
 
-import io
-import numpy as np
-import pandas as pd
-import random
 import requests
-from requests import Request, Session
+from requests import Request
 from requests.adapters import HTTPAdapter, Retry
-import re
 import time
 import os
-from pathlib import Path
-import itertools
-import concurrent.futures
-from pyppeteer.network_manager import Request, Response
+from pyppeteer.network_manager import Request
 import urllib.parse
-
-from random import getstate, randrange
-from requests.exceptions import ConnectionError
-from requests.exceptions import SSLError
-from requests.exceptions import Timeout
-from requests.exceptions import TooManyRedirects
-from urllib.parse import urlparse
 
 import nest_asyncio
 nest_asyncio.apply()
 
 import asyncio
 import pyppeteer
-import pyppdf.patch_pyppeteer
 
+requests.adapters.DEFAULT_RETRIES = 5
 
 class ReportServerUpdating(Exception):
      pass
@@ -67,7 +59,7 @@ class ShcDL:
           handleSIGTERM=False,
           handleSIGHUP=False)
     else:
-      self.browser = await pyppeteer.launch({ 'headless': False, 'devTools': True, 'autoClose': False, 'args': ['--no-sandbox'] },
+      self.browser = await pyppeteer.launch({ 'headless': True, 'devTools': False, 'autoClose': False, 'args': ['--no-sandbox'] },
           handleSIGINT=False,
           handleSIGTERM=False,
           handleSIGHUP=False)
@@ -75,6 +67,9 @@ class ShcDL:
     #self.page.on('console', lambda msg: utils.logText(f'console message {msg.type} {msg.text} {msg.args}'))
     self.states = offlineStates() #{ state['id'] : state for state in await self.getStates() }
     await self.page.setViewport({'width': 0, 'height': 0})
+
+  async def newPage(self):
+    self.page = await self.browser.newPage()
 
   async def close(self):
     await self.page.close()
@@ -89,8 +84,10 @@ class ShcDL:
     endpoints = await self.page.evaluate('Array.prototype.slice.call(document.getElementById("StateUrl").children).map(ele => { return { state: ele.textContent, endpoint: ele.value}}).filter(ele => ele.state != "--SELECT--")', force_expr=True)
     ids={}
     for endpoint in endpoints:
-      #result = map( lambda el: { 'state': asyncio.run(self.page.evaluate('(element) => element.textContent',el)) , 'endpoint': asyncio.run(self.page.evaluate('(element) => element.value',el)) }, statesDropDown)
-      await self.page.goto(endpoint['endpoint']) #"https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam"
+      
+      print(f"Goto {endpoint['endpoint']}\n")
+      await self.page.goto(endpoint['endpoint']) 
+      
       await self.page.waitForFunction("document.getElementById('State_cd2') != null")
       await self.page.waitForFunction("document.getElementById('State_cd2').length > 1")
       results = await self.page.evaluate('Array.prototype.slice.call(document.getElementById("State_cd2").children).map(ele => { return { state: ele.textContent, id: ele.value}}).filter(ele => ele.state != "--SELECT--")', force_expr=True)
@@ -170,7 +167,7 @@ class ShcDL:
     state_endpoint = self.states[state]['endpoint']
 
     s = requests.Session()
-    retries = Retry(total=5, backoff_factor=0.1)
+    retries = Retry(total=5, backoff_factor=1)
     s.mount('http://', HTTPAdapter(max_retries=retries))
     r= s.get(f'{state_endpoint}/CommonFunction/GetVillage', params={
        'Sub_discode': subDistrict
@@ -220,7 +217,7 @@ class ShcDL:
     #await self.page.setRequestInterception(True)
     #self.page.on('request', lambda req: asyncio.ensure_future(req_intercept(req)))
     print(f"Init page {state_endpoint}/HealthCard/HealthCard/HealthCardPNew")
-    self.page.setCacheEnabled(False)
+    await self.page.setCacheEnabled(False)
     self.page.setDefaultNavigationTimeout(30000)
     await self.page.goto("https://www.google.com")
     await self.page.goto(f"{state_endpoint}/HealthCard/HealthCard/HealthCardPNew")
@@ -298,58 +295,6 @@ class ShcDL:
         break
       page = page + 1
     return results
-    """
-    await self.page.goto(url)
-    samples = set()
-    stop = False
-    while (await self._pageHasMoreThanOneRow() or page == 1) and stop is False:
-        timestamp = int(time.time()) 
-        for index in range(1,4):
-            sample_element = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(1)')
-            village_grid_element = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(2)')
-            srno_element = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(3)')
-
-            district_element = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(5)')
-            mandal_element = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(6)')
-            village_element = await self.page.J(F'#MainTable > tbody > tr:nth-child({index}) > td:nth-child(8)')
-            if sample_element and srno_element:
-                sample_text = await (await sample_element.getProperty('textContent')).jsonValue()
-                village_grid_text = await (await village_grid_element.getProperty('textContent')).jsonValue()
-
-                district_text = await (await district_element.getProperty('textContent')).jsonValue()
-                mandal_text = await (await mandal_element.getProperty('textContent')).jsonValue()
-                village_text = await (await village_element.getProperty('textContent')).jsonValue()
-
-                srno_text = await (await srno_element.getProperty('textContent')).jsonValue()
-                if sample_text+srno_text in samples:
-                  stop = True
-                  break
-                samples.add(sample_text+srno_text)
-                srno_text = int(srno_text)
-                
-                results.append({
-                    'sample': sample_text,
-                    'village_grid': village_grid_text,
-                    'sr_no': srno_text,
-                    'district': district_text,
-                    'mandal': mandal_text,
-                    'village': village_text,
-                    'state_id': state,
-                    'district_id': district,
-                    'mandal_id': subdistrict,
-                    'village_id': village
-                })
-            else:
-              await self.screenshot( F'error_retrieving_cards_{state}_{district}_{subdistrict}_{village}_{page}.png')
-        page = page + 1
-        url = f'{state_endpoint}/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&block=&Statecode={state}&discode={district}&subdiscode={subdistrict}&village={village}&Source_Type=&Date_Recieve=&VerificationToken={token}&_={timestamp}&page={page}'
-        await self.page.goto(url)
-     """   
-    #return results
-
-  async def screenshot(self, path):
-      content = await self.page.screenshot()
-      storage.uploadFile("screenshots/"+path, content,{})
 
   async def _pageHasMoreThanOneRow(self):
     sample_element = await self.page.J(F'#MainTable > tbody > tr:nth-child(2) > td:nth-child(1)')
@@ -375,13 +320,8 @@ class ShcDL:
             if len(report_html) > 60*1024:
               #await page.close()
               return report_html
-            else:
-              sample_no_escaped = sample_no.replace('/','-')
-              await self.screenshot( F'error_download_{sample_no_escaped}_{sr_no}_{counter}.png')
           except pyppeteer.errors.TimeoutError:
             logging.exception(f"error downloading card {sample_no} {sr_no}")
-            sample_no_escaped = sample_no.replace('/','-')
-            await self.screenshot( F'error_download_{sample_no_escaped}_{sr_no}_{counter}.png')
             #await page.close()
             raise pyppeteer.errors.TimeoutError
         except pyppeteer.errors.TimeoutError:
@@ -452,17 +392,13 @@ async def fetchCard(card, overwrite):
     return shc
 
 def ingestMetadata():
-  client = bigquery.Client()
-  dataset_id = os.getenv("BIGQUERY_DATASET")
-  dataset_id_full = f"{client.project}.{dataset_id}"
-
   shc = ShcDL()
   asyncio.run(shc.setup())
   states = asyncio.run(shc.getStates())
   for state in states:
     districts = asyncio.run(shc.getDistricts(state['id']))
     if len(districts) > 0:
-      errors = []# errors = client.insert_rows_json(f"{dataset_id_full}.districts", [ {"id": district['id'], "name": district['name'], "state_id": state['id']} for district in districts ])
+      errors = []
       if errors == []:
           print("New rows have been added.")
       else:
@@ -470,7 +406,7 @@ def ingestMetadata():
       for district in districts:
         subdistricts = asyncio.run(shc.getSubDistricts(state['id'],district['id']))
         if len(subdistricts) > 0:
-          errors = []# errors = client.insert_rows_json(f"{dataset_id_full}.subdistricts", [ {"id": subdistrict['id'], "name": subdistrict['name'], "district_id": district['id']} for subdistrict in subdistricts ])
+          errors = []
           if errors == []:
               print("New rows have been added.")
           else:
@@ -478,22 +414,8 @@ def ingestMetadata():
           for subdistrict in subdistricts:
             villages = asyncio.run(shc.getVillages(state['id'], district['id'], subdistrict['id']))
             if len(villages) > 0:
-              errors = []# errors = client.insert_rows_json(f"{dataset_id_full}.villages", [ {"id": village['id'], "name": village['name'], "subdistrict_id": subdistrict['id']} for village in villages ])
+              errors = []
               if errors == []:
                   print("New rows have been added.")
               else:
                   print("Encountered errors while inserting rows: {}".format(errors))
-
-if __name__ == "__main__":
-  shcdl = ShcDL()
-  asyncio.run(shcdl.setup())
-
-  cards = asyncio.run(shcdl.getCards("2", "30", "153", "19159"))
-  print(cards)
-
-  # empty https://soilhealth.dac.gov.in/HealthCard/HealthCard/SearchInGridP?S_District_Sample_number=&S_Financial_year=&GetSampleno=&Fname=&Statecode=14&discode=275&subdiscode=1874&block=&village=913565&Source_Type=&Date_Recieve=&VerificationToken=73DfkvvtsGux5IP9_ysmq5BNUivJOJkxfwsB5G6VHGlYoxNK95N4O1JRKudPt6dcDMc4RoGmaJt0o_K5QMpu3L5JNS1N4z-dSV1EdwZAGCI1%2CwSBQVRbHDqCSH6nSm9YpOOseCLAX0zrib-Fg7e5DRZGVLrz3KahmEIE1tKxGJqFzZChrWQMW7aWYBQT9D01OFKGPQkhkhB99sQUdGQB5VNc1
-  #cards = asyncio.run(shcdl.getCards("14", "275", "1874", "913565"))
-  #print(cards)
-  #overwrite = "true"
-  #card = {'district': 'Hahthial', 'district_id': '1070', 'mandal': 'Hnahthial', 'mandal_id': '1915', 'sample': 'MZ271610/2016-17/10343339', 'sr_no': 1, 'state_id': '15', 'village': 'Darzo', 'village_grid': '7', 'village_id': '271610'}
-  #asyncio.run(fetchCard(card, overwrite))
