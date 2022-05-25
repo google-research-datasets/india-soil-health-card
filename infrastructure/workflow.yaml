@@ -14,8 +14,31 @@ main:
                     initial_delay: 1
                     max_delay: 60
                     multiplier: 2
-        - delegateStates:
-            call: experimental.executions.map
-            args:
-                workflow_id: shc-scraping-states
-                arguments: $${states.body}
+        - loopStates:
+            for:
+                value: state
+                in: $${states.body}
+                steps:
+                    - outerLoopAssign:
+                        assign:
+                            - execution: 
+                                argument: $${json.encode_to_string(state)}
+                    - create_task:
+                        call: googleapis.cloudtasks.v2.projects.locations.queues.tasks.create
+                        args:
+                            parent: ${queue_name}
+                            body:
+                                task:
+                                    httpRequest:
+                                        url: https://workflowexecutions.googleapis.com/v1/projects/grotz-pso-team/locations/europe-west1/workflows/shc-scraping-states/executions
+                                        body: $${base64.encode(json.encode(execution))}
+                                        httpMethod: "POST"
+                                        headers:
+                                            Content-Type: "application/json"
+                                        oauthToken:
+                                            serviceAccountEmail: ${task_sa}
+       # - delegateStates:
+       #     call: experimental.executions.map
+       #     args:
+       #         workflow_id: shc-scraping-states
+       #         arguments: $${states.body}

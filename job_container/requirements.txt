@@ -16,3 +16,4 @@ sqlalchemy
 bs4
 google-cloud-bigquery
 geojson
+google-cloud-tasks

@@ -14,7 +14,6 @@ import shc_html_extractor
 import base64
 import utils
 import analytics_storage
-from google.cloud import spanner
 import logging
 import traceback
 
@@ -22,12 +21,6 @@ app = Flask(__name__)
 
 pool = database.init_connection_engine()
 
-
-SPANNER_INSTANCE_ID = os.getenv("SPANNER_INSTANCE_ID", 0)
-SPANNER_DATABASE_ID = os.getenv("SPANNER_DATABASE_ID", 0)
-spanner_client = spanner.Client()
-instance = spanner_client.instance(SPANNER_INSTANCE_ID)
-database = instance.database(SPANNER_DATABASE_ID)
 
 @app.route("/extract")
 async def extract():
@@ -187,14 +180,6 @@ async def downloadCard():
     card['sr_no'] = str(card['sr_no'])
     try:
         content = await scraper.fetchCard(card, overwrite)
-        with database.batch() as batch:
-            batch.insert_or_update(
-                table="Cards",
-                columns=("VillageId", "Sample", "SrNo", "Ingested"),
-                values=[
-                    (int(card['village_id']), card['sample'], int(card['sr_no']), True)
-                ],
-            )
         try:
             extractor = shc_html_extractor.ShcHtmlExtractor(content)
             extracted = extractor.extract()

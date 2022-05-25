@@ -43,6 +43,7 @@ import asyncio
 import pyppeteer
 import pyppdf.patch_pyppeteer
 
+requests.adapters.DEFAULT_RETRIES = 5
 
 class ReportServerUpdating(Exception):
      pass
@@ -67,7 +68,7 @@ class ShcDL:
           handleSIGTERM=False,
           handleSIGHUP=False)
     else:
-      self.browser = await pyppeteer.launch({ 'headless': False, 'devTools': True, 'autoClose': False, 'args': ['--no-sandbox'] },
+      self.browser = await pyppeteer.launch({ 'headless': True, 'devTools': False, 'autoClose': False, 'args': ['--no-sandbox'] },
           handleSIGINT=False,
           handleSIGTERM=False,
           handleSIGHUP=False)
@@ -75,6 +76,9 @@ class ShcDL:
     #self.page.on('console', lambda msg: utils.logText(f'console message {msg.type} {msg.text} {msg.args}'))
     self.states = offlineStates() #{ state['id'] : state for state in await self.getStates() }
     await self.page.setViewport({'width': 0, 'height': 0})
+
+  async def newPage(self):
+    self.page = await self.browser.newPage()
 
   async def close(self):
     await self.page.close()
@@ -90,7 +94,9 @@ class ShcDL:
     ids={}
     for endpoint in endpoints:
       #result = map( lambda el: { 'state': asyncio.run(self.page.evaluate('(element) => element.textContent',el)) , 'endpoint': asyncio.run(self.page.evaluate('(element) => element.value',el)) }, statesDropDown)
+      print(f"Goto {endpoint['endpoint']}\n")
       await self.page.goto(endpoint['endpoint']) #"https://soilhealth.dac.gov.in/HealthCard/HealthCard/HealthCardPNew?Stname=Assam"
+      
       await self.page.waitForFunction("document.getElementById('State_cd2') != null")
       await self.page.waitForFunction("document.getElementById('State_cd2').length > 1")
       results = await self.page.evaluate('Array.prototype.slice.call(document.getElementById("State_cd2").children).map(ele => { return { state: ele.textContent, id: ele.value}}).filter(ele => ele.state != "--SELECT--")', force_expr=True)
@@ -170,7 +176,7 @@ class ShcDL:
     state_endpoint = self.states[state]['endpoint']
 
     s = requests.Session()
-    retries = Retry(total=5, backoff_factor=0.1)
+    retries = Retry(total=5, backoff_factor=1)
     s.mount('http://', HTTPAdapter(max_retries=retries))
     r= s.get(f'{state_endpoint}/CommonFunction/GetVillage', params={
        'Sub_discode': subDistrict
@@ -220,7 +226,7 @@ class ShcDL:
     #await self.page.setRequestInterception(True)
     #self.page.on('request', lambda req: asyncio.ensure_future(req_intercept(req)))
     print(f"Init page {state_endpoint}/HealthCard/HealthCard/HealthCardPNew")
-    self.page.setCacheEnabled(False)
+    await self.page.setCacheEnabled(False)
     self.page.setDefaultNavigationTimeout(30000)
     await self.page.goto("https://www.google.com")
     await self.page.goto(f"{state_endpoint}/HealthCard/HealthCard/HealthCardPNew")

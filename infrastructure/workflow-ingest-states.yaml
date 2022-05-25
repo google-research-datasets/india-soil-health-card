@@ -81,10 +81,33 @@ main:
                                     call: sys.log
                                     args:
                                         text: $${"Loaded villages "+ json.encode_to_string(villages.body) }
-                                        severity: INFO 
-                                - downloadCards:
-                                    call: experimental.executions.map
-                                    args:
-                                        workflow_id: shc-scraping-village
-                                        arguments: $${villages.body}
-                                    result: result
+                                        severity: INFO
+                                - loopVillages:
+                                    for:
+                                        value: village
+                                        in: $${villages.body}
+                                        steps:
+                                            - outerLoopAssign:
+                                                assign:
+                                                    - execution: 
+                                                        argument: $${json.encode_to_string(village)}
+                                            - create_task:
+                                                call: googleapis.cloudtasks.v2.projects.locations.queues.tasks.create
+                                                args:
+                                                    parent: ${queue_name}
+                                                    body:
+                                                        task:
+                                                            httpRequest:
+                                                                url: https://workflowexecutions.googleapis.com/v1/projects/grotz-pso-team/locations/europe-west1/workflows/shc-scraping-village/executions
+                                                                body: $${base64.encode(json.encode(execution))}
+                                                                httpMethod: "POST"
+                                                                headers:
+                                                                    Content-Type: "application/json"
+                                                                oauthToken:
+                                                                    serviceAccountEmail: ${task_sa}
+                                #- downloadCards:
+                                #    call: experimental.executions.map
+                                #    args:
+                                #        workflow_id: shc-scraping-village
+                                #    result: result
+                                ##        arguments: $${villages.body}

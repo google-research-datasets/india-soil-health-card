@@ -79,7 +79,9 @@ resource "google_workflows_workflow" "shc_scraping" {
   service_account = google_service_account.workflow_sa.id
   source_contents = templatefile("${path.module}/workflow.yaml",
     {
-      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url
+      cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
+      task_sa = google_service_account.workflow_sa.email,
+      queue_name = google_cloud_tasks_queue.states.id
     }
   )
 
@@ -138,6 +140,8 @@ resource "google_workflows_workflow" "shc_scraping_states" {
   source_contents = templatefile("${path.module}/workflow-ingest-states.yaml",
     {
       cloud_run_url = google_cloud_run_service.anthrokrishi-scraper.status[0].url,
+      task_sa = google_service_account.workflow_sa.email,
+      queue_name = google_cloud_tasks_queue.villages.id
     }
   )
 
@@ -222,6 +226,14 @@ resource "google_cloud_run_service" "anthrokrishi-scraper" {
           name  = "DATABASE_CONNECTION_NAME"
           value = google_sql_database_instance.instance.connection_name
         }
+        env {
+          name  = "SPANNER_INSTANCE_ID"
+          value = google_spanner_instance.main.name
+        }
+        env {
+          name  = "SPANNER_DATABASE_ID"
+          value = google_spanner_database.database.name
+        }
       }
     }
     metadata {
@@ -261,7 +273,7 @@ resource "google_cloud_run_service" "anthrokrishi-scraper-pubsub" {
     spec {
       service_account_name  = google_service_account.run_sa.email
       timeout_seconds       = 3600
-      container_concurrency = 1
+      container_concurrency = 10
       containers {
         image = "gcr.io/${var.project_id}/scraper:${local.container_folder_hash}"
         ports {
@@ -271,7 +283,7 @@ resource "google_cloud_run_service" "anthrokrishi-scraper-pubsub" {
         resources {
           limits = {
             cpu    = "4000m"
-            memory = "8Gi"
+            memory = "4Gi"
           }
         }
         env {
@@ -293,6 +305,14 @@ resource "google_cloud_run_service" "anthrokrishi-scraper-pubsub" {
         env {
           name  = "DATABASE_CONNECTION_NAME"
           value = google_sql_database_instance.instance.connection_name
+        }
+        env {
+          name  = "SPANNER_INSTANCE_ID"
+          value = google_spanner_instance.main.name
+        }
+        env {
+          name  = "SPANNER_DATABASE_ID"
+          value = google_spanner_database.database.name
         }
       }
     }
@@ -323,6 +343,7 @@ resource "google_cloud_run_service_iam_member" "member" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.workflow_sa.email}"
 }
+
 resource "google_cloud_run_service_iam_member" "member-invoker-pubsub" {
   location = google_cloud_run_service.anthrokrishi-scraper-pubsub.location
   project  = google_cloud_run_service.anthrokrishi-scraper-pubsub.project
@@ -331,84 +352,32 @@ resource "google_cloud_run_service_iam_member" "member-invoker-pubsub" {
   member   = "serviceAccount:${google_service_account.workflow_sa.email}"
 }
 
+resource "google_cloud_tasks_queue" "states" {
+  name = "shc-states-queue"
+  location = var.region
+  project = var.project_id
+  rate_limits {
+    max_concurrent_dispatches = 1
+    max_dispatches_per_second = 10
+  }
+}
+
+resource "google_cloud_tasks_queue" "villages" {
+  name = "shc-villages-queue"
+  location = var.region
+  project = var.project_id
+  rate_limits {
+    max_concurrent_dispatches = 5
+    max_dispatches_per_second = 10
+  }
+}
+
 resource "google_cloud_tasks_queue" "default" {
   name = "shc-card-queue"
   location = var.region
   project = var.project_id
   rate_limits {
-    max_concurrent_dispatches = 50
-    max_dispatches_per_second = 100
+    max_concurrent_dispatches = 100
+    max_dispatches_per_second = 500
   }
-}
-
-
-resource "google_cloud_run_service" "anthrokrishi-scraper-asia-south" {
-  provider = google-beta
-  name     = "scraper-pubsub"
-  location = "asia-southeast1"
-  project  = var.project_id
-
-  metadata {
-    annotations = {
-      "run.googleapis.com/ingress" : "all"
-    }
-  }
-
-  template {
-    spec {
-      service_account_name  = google_service_account.run_sa.email
-      timeout_seconds       = 3600
-      container_concurrency = 1
-      containers {
-        image = "gcr.io/${var.project_id}/scraper:${local.container_folder_hash}"
-        ports {
-          name           = "http1"
-          container_port = 8080
-        }
-        resources {
-          limits = {
-            cpu    = "4000m"
-            memory = "8Gi"
-          }
-        }
-        env {
-          name  = "GCS_BUCKET"
-          value = google_storage_bucket.shc-bucket.name
-        }
-        env {
-          name  = "BIGQUERY_DATASET"
-          value = google_bigquery_dataset.shc_cards.dataset_id
-        }
-        env {
-          name  = "POSTGRES_IAM_USER"
-          value = "${google_service_account.run_sa.account_id}@${data.google_project.project.project_id}.iam" //google_service_account.run_sa.email
-        }
-        env {
-          name  = "DATABASE_NAME"
-          value = google_sql_database.database.name
-        }
-        env {
-          name  = "DATABASE_CONNECTION_NAME"
-          value = google_sql_database_instance.instance.connection_name
-        }
-      }
-    }
-    metadata {
-      annotations = {
-        "autoscaling.knative.dev/maxScale"      = "100"
-        "run.googleapis.com/cloudsql-instances" = google_sql_database_instance.instance.connection_name
-        "run.googleapis.com/client-name"        = "shc-scraper-pubsub"
-      }
-    }
-  }
-
-  traffic {
-    percent         = 100
-    latest_revision = true
-  }
-
-  depends_on = [
-    google_project_service.project,
-    null_resource.docker_image
-  ]
 }

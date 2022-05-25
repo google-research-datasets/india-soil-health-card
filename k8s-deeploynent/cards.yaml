@@ -1,0 +1,1059 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-0
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "0"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-1
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "1"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-2
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "2"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-3
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "3"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-4
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "4"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-5
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "5"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-6
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "6"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-7
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "7"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-8
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "8"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-9
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "9"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-10
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "10"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-11
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "11"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-12
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "12"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-13
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "13"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-14
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "14"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-15
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "15"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-16
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "16"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-17
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "17"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-18
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "18"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discover-cards-19
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      serviceAccountName: scraper
+      containers:
+      - name: scraper
+        image: gcr.io/grotz-pso-team/scraper:15
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "2Gi"
+        env:
+          - name: MODE
+            value: CARDS
+          - name: TASK_INDEX
+            value: "19"
+          - name: TASK_COUNT
+            value: "20"
+          - name: GCS_BUCKET
+            value: grotz-anthrokrishi-shcs
+          - name: BIGQUERY_DATASET
+            value: soilhealth
+          - name: SPANNER_INSTANCE_ID
+            value: tfgen-spanid-20220516132152938
+          - name: SPANNER_DATABASE_ID
+            value: metadata
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - SYS_ADMIN
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /.local
+          name: local
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - emptyDir: {}
+        name: local
