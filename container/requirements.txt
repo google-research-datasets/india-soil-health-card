@@ -7,3 +7,4 @@ google-cloud-storage
 google-cloud-logging
 google-cloud-spanner
 bs4
+shapely
