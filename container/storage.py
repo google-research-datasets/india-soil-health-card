@@ -49,3 +49,27 @@ def uploadFile( file_path , content, metadata):
     blob = bucket.blob(file_path)
     blob.metadata = metadata
     blob.upload_from_string(content)
+    
+def downloadFile(file_path):
+  blob = bucket.blob(file_path)
+  contents = blob.download_as_string()
+  return contents
+
+def uploadParsedCard(file_path, content):
+  file_path = 'ExtractedCards/' + file_path[5:-4] + 'json'
+
+  blob = bucket.blob(file_path)
+  blob.upload_from_string(content)
+
+def isFileUploaded(file_path):
+  file_path = 'ExtractedCards/' + file_path[5:-4] + 'json'
+  return storage.Blob(bucket=bucket, name=file_path).exists(storage_client)
+
+def downloadJsonBlob(file_path):
+  file_path = 'ExtractedCards/' + file_path[5:-4] + 'json'
+  try:
+    blob = bucket.blob(file_path)
+    contents = blob.download_as_string()
+  except:
+    return None
+  return contents
