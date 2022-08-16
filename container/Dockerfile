@@ -21,6 +21,7 @@ RUN apt-get -qq update && apt-get -qqy install gconf-service libasound2 libatk1.
 ENV APP_HOME /app
 WORKDIR $APP_HOME
 COPY . ./
+ADD ./testdata /app/testdata
 
 # Install production dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
