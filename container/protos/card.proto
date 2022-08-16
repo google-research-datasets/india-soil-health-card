@@ -1,0 +1,89 @@
+syntax = "proto2";
+
+package container.protos;
+
+// Represents all the soil sample details on the front side of page 1 of the
+// soil health card.
+message SoilSampleDetails {
+  // Non-empty string representing the soil health card number.
+  optional string soil_health_card_number = 1;
+  // Represents validity period of the soil health card.
+  optional string validity = 2;
+  // Represents date on which the soil sample was collected.
+  optional string sample_collection_date = 3;
+  optional string survey_no = 4;
+  // Positive decimal number representning the size of the farm.
+  optional double farm_size = 5;
+  optional string farm_size_unit = 6;
+  // Specifies the method of irrigation of the farm. (e.g. Rainfed, Tubewell,
+  // etc.)
+  optional string irrigation_method = 7;
+  // Specifies the geoposition of the farm in latitude°N, longitude°E
+  optional double latitude = 8;
+  optional double longitude = 9;
+  // Specifies the soil test lab where the soil samples were tested.
+  optional string soil_test_lab = 10;
+  optional string soil_type = 11;
+}
+
+// Represents the soil test result for a single attribute (e.g. pH, Zn, etc.)
+message SoilTestResult {
+  // Specifies the name of the attribute for which the soil was tested.
+  optional string parameter = 1;
+  // Non-negative decimal representing the test value of the parameter.
+  optional double value = 2;
+  optional string unit = 3;
+  // Indicates the amount of nutrient in the soil qualitatively. (e.g.
+  // "Very High", "Low", "Medium", "Sufficient", "Deficient", etc.)
+  optional string rating = 4;
+  // Non-negative decimal representing minimum amount of the parameter
+  // acceptable as normal.
+  optional double min_normal_level = 5;
+  // Non-negative decimal representing maximum anount of the parameter
+  // acceptable as normal.
+  optional double max_normal_level = 6;
+  optional string unit_normal_level = 7;
+}
+
+// Represents the various general and secondary recommendations provided.
+message Recommendations {
+  message GeneralRecommendation {
+    optional string parameter = 1;
+    optional string recommendation = 2;
+  }
+
+  // Recommendations for various micro nutrients. The nutrients can be provided
+  // by either one of the methods, through soil or through spray.
+  message SecondaryRecommendation {
+    optional string parameter = 1;
+    optional string recommendation_through_soil = 2;
+    optional string recommendation_through_spray = 3;
+  }
+
+  repeated GeneralRecommendation general_recommendations = 1;
+  repeated SecondaryRecommendation secondary_recommendations = 2;
+}
+
+// Fertilizer combinations that the farmer can use for various crops.
+message FertilizerCombinations {
+  message FertilizerCombination {
+    // For each crop variety, two options are provided, 1 or 2.
+    // Farmer can use either option 1 or option 2, but not both.
+    optional int64 option_type = 1;
+    // The name of the crop for which the fertilizer combination is provided.
+    optional string crop_variety = 2;
+    // Comma-separated string denoting the various fertilizers and their
+    // corresponding quantities to be used for a partcular crop variety.
+    optional string combination = 3;
+  }
+
+  repeated FertilizerCombination combinations = 1;
+}
+
+// Top level proto representing the whole soil health card
+message Card {
+  optional SoilSampleDetails soil_sample_details = 1;
+  repeated SoilTestResult soil_test = 2;
+  optional Recommendations recommendations = 3;
+  optional FertilizerCombinations fertilizer_combinations = 4;
+}
