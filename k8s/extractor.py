@@ -19,12 +19,12 @@ for i in range(0, num_tasks):
   f.write(f"""apiVersion: v1
 kind: Pod
 metadata:
-  name: extract-cards1-{i}
+  name: extract-cards-{i}
 spec:
   restartPolicy: Always
   containers:
   - name: extractor
-    image: gcr.io/soil-health-card-india/extractor:11
+    image: <docker_image>
     resources:
       requests:
         cpu: "250m"
@@ -37,11 +37,11 @@ spec:
       - name: TASK_COUNT
         value: "{num_tasks}"
       - name: GCS_BUCKET
-        value: anthrokrishi-shcs
+        value: <GCS_BUCKET_NAME>
       - name: SPANNER_INSTANCE_ID
-        value: tfgen-spanid-20220525101635457
+        value: <SPANNER_INSTANCE_ID>
       - name: SPANNER_DATABASE_ID
-        value: metadata
+        value: <SPANNER_DATABASE_ID>
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
