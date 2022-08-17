@@ -17,7 +17,7 @@
 resource "google_spanner_instance" "main" {
   config           = "regional-europe-west1"
   project          = var.project_id
-  display_name     = "AnthroKrishi"
+  display_name     = "SoilHealhCards"
   processing_units = 5000
 
   depends_on = [
