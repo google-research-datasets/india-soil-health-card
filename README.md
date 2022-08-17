@@ -1,4 +1,4 @@
-# AnthroKrishi SHC Scraper
+# Soil Health Card Scraper
 This repository contains a simple Python based scraper that, will download metadata and Soil Health Cards from https://soilhealth.dac.gov.in and stores them in Google Cloud Storage (GCS).
 
 In order to operate the scraper needs access to a GCS Bucket and a Google Cloud Spanner database.
