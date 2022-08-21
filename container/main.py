@@ -23,7 +23,6 @@ from shapely import geometry
 import scraper
 import time
 import random
-import card_check
 
 file_prefix = "shcs/"
 spanner_client = spanner.Client()
