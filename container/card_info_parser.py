@@ -283,6 +283,24 @@ class CardInfoParser:
         fertilizer_combination.combination = combination
 
         fertilizer_combinations.combinations.append(fertilizer_combination)
+    # fruits option 1
+    if self.card.get('fertilizer_fruit_option_1'):
+      for crop_variety, combination in self.card['fertilizer_fruit_option_1'].items():
+        fertilizer_combination = card_pb2.FertilizerCombinations.FertilizerCombination()
+        fertilizer_combination.option_type = 1
+        fertilizer_combination.crop_variety = crop_variety
+        fertilizer_combination.combination = combination
+
+        fertilizer_combinations.combinations.append(fertilizer_combination)
+    # fruits option 2
+    if self.card.get('fertilizer_fruit_option_2'):
+      for crop_variety, combination in self.card['fertilizer_fruit_option_2'].items():
+        fertilizer_combination = card_pb2.FertilizerCombinations.FertilizerCombination()
+        fertilizer_combination.option_type = 2
+        fertilizer_combination.crop_variety = crop_variety
+        fertilizer_combination.combination = combination
+
+        fertilizer_combinations.combinations.append(fertilizer_combination)
 
     self.card_proto.fertilizer_combinations.CopyFrom(fertilizer_combinations)
     return json_format.MessageToJson(fertilizer_combinations)
