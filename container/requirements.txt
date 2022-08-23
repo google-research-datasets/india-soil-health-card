@@ -8,3 +8,4 @@ google-cloud-logging
 google-cloud-spanner
 bs4
 shapely
+protobuf==3.20.*
