@@ -61,3 +61,7 @@ spec:
 
 The k8s folder also contains helper scripts that allow you to easily generate Kubernetes deployment descriptors for multiple instances of the Pod. In our experience this is not necessary for the metadata scraping.
 
+Once you have created the yaml files, these pods can then be easily deployed by running the following command:
+```
+kubectl apply -f <filename>.yaml
+```
