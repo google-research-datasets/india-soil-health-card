@@ -1,5 +1,5 @@
 # Introduction
-This folder (./MSAnalysis) contain the scripts used to analyze the SHC database:
+This folder (./MSAnalysis) contain the scripts used to analyze the SHC database. All relevant data files are stored in the "./MSAnalysis/Data" folder
 
 ## 1. InitialCheck.R
 The Initial check script contains initial checks focused on the spatial and temporal coverage of the database. Specifically, it runs checks on the spatio-temporal coverage of the Soil Health Cards Database.
