@@ -6,3 +6,6 @@ The Initial check script contains initial checks focused on the spatial and temp
 
 ## 2. DescStats.R
 This script generates descriptive statistics for soil parameters and farm size.
+
+## 3. ReliabilityScores.R
+This script assigns and analyzes composite reliability scores as a function of location, sample collection date, farm characteristics, physical properties of the soil sample, and macro and micronutrients in the soil sample.
