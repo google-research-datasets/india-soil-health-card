@@ -1,0 +1,42 @@
+var geometry = 
+    /* color: #d63000 */
+    /* shown: false */
+    /* displayProperties: [
+      {
+        "type": "rectangle"
+      }
+    ] */
+    ee.Geometry.Polygon(
+        [[[58.67627705724565, 39.80597932957022],
+          [58.67627705724565, -0.2230541737352435],
+          [107.10401143224564, -0.2230541737352435],
+          [107.10401143224564, 39.80597932957022]]], null, false);
+
+//load soil layers 
+  
+var sand = ee.Image("projects/soilgrids-isric/nitrogen_mean").clip(geometry);
+print(sand)
+var sand0 = sand.select("nitrogen_0-5cm_mean");
+var sand1 = sand.select("nitrogen_5-15cm_mean");
+var sand2 = sand.select("nitrogen_15-30cm_mean");
+var sand3 = sand.select("nitrogen_30-60cm_mean");
+var sand4 = sand.select("nitrogen_60-100cm_mean");
+var sand5 = sand.select("nitrogen_100-200cm_mean");
+
+function exportim(image1,desc,scale1,region1) {
+  Export.image.toDrive({
+    image: image1, // <--
+    description: desc,
+    scale: scale1,
+    region: region1,
+    maxPixels:900000000
+});
+}
+
+exportim(sand0,"nitrogen_0-5cm_mean",250,geometry);
+exportim(sand1,"nitrogen_5-15cm_mean",250,geometry);
+exportim(sand2,"nitrogen_15-30cm_mean",250,geometry);
+exportim(sand3,"nitrogen_30-60cm_mean",250,geometry);
+exportim(sand4,"nitrogen_60-100cm_mean",250,geometry);
+exportim(sand5,"nitrogen_100-200cm_mean",250,geometry);
+exportim(sand.reduce("mean"),"nitrogen_0-200cm_mean",250,geometry);
