@@ -12,3 +12,12 @@ This script assigns and analyzes composite reliability scores as a function of l
 
 ## 4. GetSoilGrids_*.txt
 These three set of text files contains the javascript code used to download Global SoilGrids data for pH, soil organic carbon (SOC), and Nitrogen, from Google Earth Engine.
+
+## 5. *_OC_N_pH_DataAggregation.R
+These two scripts aggregates data from the SHC database and soilgrid database rasters at the State, District, and Agroecological Zones (AEZ) scales, for soil pH, Organic Carbon(OC), and soil Nitrogen (N).
+
+## 6. SHC_SG_OC_N_pH_Comparison.R
+This script compares soil pH, Organic Carbon(OC), and soil Nitrogen (N) estimates from the SHC and soilgrid databases at State, District, and Agroecological Zones (AEZ) scales.
+
+## 7. SLUSI_SHC_regionalComparison.R
+This script compares multiple soil parameter estiamtes the SHC and SLUSI (bottom-up samples) databases. 
