@@ -42,6 +42,8 @@ aez1.1$SoilParameter = unlist(lapply(strsplit(as.character(aez1.1[,"variable"]),
 phdata = getdata4plot(state,state1.1,district,district1.1,aez,aez1.1,shcpara="pHmean",sgpara="phh2o")
 shcpara="pHmean"
 sgpara="phh2o"
+phdata$scale = factor(phdata$scale,levels = c("District","State","AEZ"))
+
 
 phplot = ggplot(phdata,aes(x=(pHmean),y=(value))) + geom_point() + 
 facet_wrap(~scale) +
@@ -60,6 +62,8 @@ labs(title="a) Soil pH")
 
 ocdata = getdata4plot(state,state1.1,district,district1.1,aez,aez1.1,shcpara="OCmean",sgpara="soc")
 ocdata$value = ocdata$value*100/10000
+ocdata$scale = factor(ocdata$scale,levels = c("District","State","AEZ"))
+
 occplot = ggplot(ocdata ,aes(x=(OCmean),y=(value))) + geom_point() + 
 facet_wrap(~scale) +
 theme_bw() +
@@ -77,6 +81,7 @@ labs(title="b) Soil Organic Carbon")
 
 
 Ndata = getdata4plot(state,state1.1,district,district1.1,aez,aez1.1,shcpara="Nmean",sgpara="nitrogen")
+Ndata$scale = factor(Ndata$scale,levels = c("District","State","AEZ"))
 
 Nplot = ggplot(Ndata ,aes(x=(Nmean),y=(value))) + geom_point() + 
 facet_wrap(~scale) +
@@ -92,8 +97,9 @@ theme(strip.text.x = element_text(size = 14),title =  element_text(size = 15) ) 
 labs(title="c) Soil Nitrogen")
 
 outplt = grid.arrange(phplot,occplot,Nplot,nrow=3)
+outplt
 
-ggsave("./Figures/AllScales_pH_OC_N.jpg",outplt ,
+ggsave("./Figures/AllScales_pH_OC_N_v1.jpg",outplt ,
 width = 9.67, height=11)
 
 
@@ -136,7 +142,7 @@ theme(strip.text.x = element_text(size = 14),title =  element_text(size = 15)) +
 labs(title="c) Soil Nitrogen")
 
 outplt = grid.arrange(phplotpool,ocplotpool ,Nplotpool ,ncol=3)
-ggsave("./Figures/AllScales_pH_OC_N_pooled.jpg",outplt ,
+ggsave("./Figures/AllScales_pH_OC_N_pooled_v1.jpg",outplt ,
 width = 12, height=3.67)
 
 ## Boxplots
@@ -164,7 +170,7 @@ labs(fill="")
 t.test(value ~ variable, data = subset(bpltdata1,Variable=="pH"),conf.level=.99)
 t.test(value ~ variable, data = subset(bpltdata1,Variable=="OC"),conf.level=.99)
 
-ggsave("./Figures/AllScales_pH_OC_pooled_boxplots.jpg",boxout ,
+ggsave("./Figures/AllScales_pH_OC_pooled_boxplots_v1.jpg",boxout ,
 width = 14.25, height=7)
 
 
