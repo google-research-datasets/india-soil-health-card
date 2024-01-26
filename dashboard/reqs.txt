@@ -1,0 +1,11 @@
+google-cloud-storage
+gcsfs
+absl-py
+google-cloud-logging
+google-cloud-spanner
+bs4
+shapely
+deepdiff
+pandas==1.3.5
+matplotlib
+numpy
